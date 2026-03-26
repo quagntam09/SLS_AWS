@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, HTTPException
+from botocore.exceptions import BotoCoreError, ClientError
 
 from app.application.services.async_schedule_service import (
     create_schedule_request,
@@ -24,6 +27,7 @@ from app.domain.schemas import (
 )
 
 router = APIRouter(prefix="/schedules", tags=["Schedules"])
+logger = logging.getLogger(__name__)
 
 
 def _require_completed_envelope(request_id: str) -> ScheduleGenerationEnvelopeDTO:
@@ -60,6 +64,12 @@ def run_schedule(payload: ScheduleRunRequestDTO) -> ScheduleRequestAcceptedDTO:
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except (RuntimeError, BotoCoreError, ClientError) as exc:
+        logger.exception("Unable to submit schedule request")
+        raise HTTPException(
+            status_code=503,
+            detail=str(exc),
+        ) from exc
 
 
 @router.get(

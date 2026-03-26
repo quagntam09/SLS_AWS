@@ -68,6 +68,7 @@ Tạo job sinh lịch mới.
 - `200`: request hợp lệ và đã được xếp hàng.
 - `400`: lỗi validate nghiệp vụ.
 - `422`: lỗi validate schema.
+- `503`: thiếu cấu hình AWS hoặc không truy cập được DynamoDB/SQS/S3.
 
 ## 3. GET /api/v1/schedules/progress/{request_id}
 

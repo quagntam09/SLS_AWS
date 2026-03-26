@@ -75,6 +75,8 @@ SCHEDULE_TABLE_NAME=
 SCHEDULE_RESULTS_BUCKET=
 ```
 
+`POST /api/v1/schedules/run` phụ thuộc vào ba biến này. Nếu thiếu một trong số đó hoặc AWS không truy cập được, API sẽ trả `503 Service Unavailable` thay vì `500 Internal Server Error`.
+
 `APP_PROGRESS_UPDATE_INTERVAL` kiểm soát tần suất worker ghi tiến độ xuống DynamoDB. Ví dụ `50` nghĩa là chỉ cập nhật ở mỗi 50 thế hệ, thay vì ghi ở mọi thế hệ, để giảm WCU và tránh throttling.
 
 ## Chạy Local

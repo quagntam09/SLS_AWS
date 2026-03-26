@@ -96,7 +96,9 @@ def _process_message(message: dict[str, object], progress_update_interval: int) 
 
 
 def run_worker() -> None:
+    print(f"[debug] Stop event is set: {_stop_event.is_set()}")
     queue_url = _required_env(QUEUE_URL_ENV)
+    
     settings = get_settings()
     progress_update_interval = settings.progress_update_interval
     sqs_client = _queue_client()
