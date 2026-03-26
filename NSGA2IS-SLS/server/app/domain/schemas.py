@@ -31,7 +31,7 @@ class ScheduleGenerationRequestDTO(BaseModel):
     max_days_off_per_doctor: int = Field(default=5, ge=0, le=14)
     rooms_per_shift: int = Field(default=1, ge=1, le=10, description="Số phòng khám hoạt động mỗi ca")
     doctors_per_room: int = Field(default=5, ge=1, le=15, description="Số bác sĩ yêu cầu mỗi phòng")
-    shifts_per_day: int = Field(default=2, ge=2, le=2)
+    shifts_per_day: int = Field(default=2, ge=1, le=2)
     doctors: List[DoctorProfileDTO] = Field(min_length=12)
     random_seed: Optional[int] = Field(default=None)
     randomization_strength: float = Field(default=0.08, ge=0.0, le=0.35)
@@ -68,7 +68,7 @@ class ScheduleRunRequestDTO(BaseModel):
     max_days_off_per_doctor: int = Field(default=5, ge=0, le=14)
     rooms_per_shift: int = Field(default=1, ge=1, le=10, description="Số phòng khám hoạt động mỗi ca")
     doctors_per_room: int = Field(default=5, ge=1, le=15, description="Số bác sĩ yêu cầu mỗi phòng")
-    shifts_per_day: int = Field(default=2, ge=2, le=2)
+    shifts_per_day: int = Field(default=2, ge=1, le=2)
     doctors: List[DoctorProfileDTO] = Field(min_length=12)
 
     @field_validator("doctors")

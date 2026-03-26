@@ -214,7 +214,7 @@ class HardConstraintManager:
                 idx=idx,
                 doctor_id=doctor.id,
                 has_license=doctor.has_valid_license,
-                is_intern=doctor.experiences < 2,
+                is_intern=doctor.is_intern,
                 specialization=doctor.specialization,
                 forbidden_days=forbidden_days,
                 preferred_extra_count=pref_in_period,
@@ -281,6 +281,7 @@ class HardConstraintManager:
         
         # Detect and fix duplicates
         for (day_idx, shift_idx), slots in shift_doctors.items():
+            shift_doctor_ids = {doctor_idx for doctor_idx, _room_idx, _pos, _ in slots}
             seen = set()
             duplicates = []
             
@@ -296,7 +297,7 @@ class HardConstraintManager:
                 replacement = self._find_replacement(
                     assignment,
                     day_idx, shift_idx, room_idx,
-                    set(doctors_list), {day_idx}
+                    set(doctors_list) | shift_doctor_ids, {day_idx}
                 )
                 if replacement is not None:
                     doctors_list[pos] = replacement
@@ -424,6 +425,8 @@ class HardConstraintManager:
         for doctor in self.doctors:
             if doctor.idx in excluded:
                 continue
+            if available_days and day_idx not in available_days:
+                continue
             if day_idx in doctor.forbidden_days:
                 continue
             if require_license and not doctor.has_license:
@@ -433,6 +436,8 @@ class HardConstraintManager:
         if not candidates:
             for doctor in self.doctors:
                 if doctor.idx not in excluded:
+                    if available_days and day_idx not in available_days:
+                        continue
                     candidates.append(doctor.idx)
         
         if any(self.doctors[e].is_intern for e in excluded):
@@ -1022,6 +1027,8 @@ class NsgaDutySchedulerService:
             raise ValueError("Không thể tạo được lịch trực hợp lệ")
         
         selected_option = pareto_options[0]
+        best_workload_std = min(opt.metrics.f3_workload_std for opt in pareto_options)
+        best_fairness = min(opt.metrics.f4_fairness for opt in pareto_options)
         selected_schedule = ScheduleGenerationResultDTO(
             start_date=request.start_date,
             num_days=request.num_days,
@@ -1056,12 +1063,12 @@ class NsgaDutySchedulerService:
             pareto_front_size=len(front_one),
             best_hard_objective=0.0,
             best_soft_objective=best_f1,
-            best_workload_std_objective=best_f2,
-            best_fairness_objective=best_f2,
+            best_workload_std_objective=best_workload_std,
+            best_fairness_objective=best_fairness,
             convergence_hard_ratio=None,
             convergence_soft_ratio=convergence_f1,
-            convergence_workload_ratio=convergence_f2,
-            convergence_fairness_ratio=convergence_f2,
+            convergence_workload_ratio=None,
+            convergence_fairness_ratio=None,
         )
         
         return ScheduleGenerationEnvelopeDTO(

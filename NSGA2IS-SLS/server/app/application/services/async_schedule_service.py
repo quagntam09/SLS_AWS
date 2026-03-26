@@ -181,7 +181,11 @@ def create_schedule_request(payload: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def mark_running(request_id: str) -> None:
+def mark_running(
+    request_id: str,
+    progress_percent: int = 10,
+    message: str = "Schedule generation is running",
+) -> None:
     _with_retries(
         "DynamoDB update_item (mark running)",
         lambda: _table().update_item(
@@ -191,8 +195,8 @@ def mark_running(request_id: str) -> None:
             ExpressionAttributeNames={"#s": "status", "#m": "message"},
             ExpressionAttributeValues={
                 ":s": "running",
-                ":p": 10,
-                ":m": "Schedule generation is running",
+                ":p": progress_percent,
+                ":m": message,
                 ":u": _utc_now(),
             },
         ),

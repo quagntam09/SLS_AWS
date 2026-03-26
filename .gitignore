@@ -93,3 +93,5 @@ NSGA2IS-SLS/aws-experiment-*.json
 # NSGA2IS-SLS personal-only tools
 NSGA2IS-SLS/tools
 NSGA2IS-SLS/artifacts
+
+package.json/
