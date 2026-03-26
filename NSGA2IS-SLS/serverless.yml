@@ -73,15 +73,6 @@ functions:
       - httpApi:
           path: /{proxy+}
           method: ANY
-  worker:
-    handler: server.app.worker.handler
-    timeout: 900
-    memorySize: 1024
-    events:
-      - sqs:
-          arn:
-            Fn::GetAtt: [ScheduleJobsQueue, Arn]
-          batchSize: 1
 
 package:
   patterns:
@@ -100,7 +91,7 @@ resources:
     ScheduleJobsQueue:
       Type: AWS::SQS::Queue
       Properties:
-        VisibilityTimeout: 930
+        VisibilityTimeout: 7200
         MessageRetentionPeriod: 1209600
     ScheduleRequestsTable:
       Type: AWS::DynamoDB::Table
@@ -115,3 +106,17 @@ resources:
             KeyType: HASH
     ScheduleResultsBucket:
       Type: AWS::S3::Bucket
+
+  Outputs:
+    ScheduleJobsQueueUrl:
+      Value:
+        Ref: ScheduleJobsQueue
+    ScheduleJobsQueueArn:
+      Value:
+        Fn::GetAtt: [ScheduleJobsQueue, Arn]
+    ScheduleRequestsTableName:
+      Value:
+        Ref: ScheduleRequestsTable
+    ScheduleResultsBucketName:
+      Value:
+        Ref: ScheduleResultsBucket
