@@ -61,6 +61,7 @@ APP_ENV=development
 APP_OPTIMIZER_POPULATION_SIZE=250
 APP_OPTIMIZER_GENERATIONS=400
 APP_PARETO_OPTIONS_LIMIT=6
+APP_PROGRESS_UPDATE_INTERVAL=50
 APP_RANDOMIZATION_STRENGTH=0.08
 APP_RANDOM_SEED=
 APP_CORS_ALLOW_ORIGINS=http://localhost:3000
@@ -73,6 +74,8 @@ SCHEDULE_QUEUE_URL=
 SCHEDULE_TABLE_NAME=
 SCHEDULE_RESULTS_BUCKET=
 ```
+
+`APP_PROGRESS_UPDATE_INTERVAL` kiểm soát tần suất worker ghi tiến độ xuống DynamoDB. Ví dụ `50` nghĩa là chỉ cập nhật ở mỗi 50 thế hệ, thay vì ghi ở mọi thế hệ, để giảm WCU và tránh throttling.
 
 ## Chạy Local
 

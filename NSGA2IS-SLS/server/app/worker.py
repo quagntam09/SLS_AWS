@@ -1,6 +1,7 @@
 import json
 import traceback
 
+from app.config import get_settings
 from app.application.services.async_schedule_service import (
     mark_completed,
     mark_failed,
@@ -12,6 +13,8 @@ from app.domain.schemas import ScheduleRunRequestDTO
 
 def handler(event, context):
     records = event.get("Records", [])
+    settings = get_settings()
+    progress_update_interval = settings.progress_update_interval
     for record in records:
         request_id = ""
         try:
@@ -26,7 +29,12 @@ def handler(event, context):
 
             def on_progress(generation: int, total_generations: int) -> None:
                 nonlocal last_progress
-                progress = min(99, 10 + int((generation / max(total_generations, 1)) * 89))
+                is_final_generation = generation >= total_generations
+                should_emit_update = is_final_generation or generation % progress_update_interval == 0
+                if not should_emit_update:
+                    return
+
+                progress = 100 if is_final_generation else min(99, 10 + int((generation / max(total_generations, 1)) * 89))
                 if progress <= last_progress:
                     return
                 last_progress = progress

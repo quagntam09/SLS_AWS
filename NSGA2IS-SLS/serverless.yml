@@ -15,6 +15,7 @@ custom:
 provider:
   name: aws
   runtime: python3.12
+  region: ap-southeast-1
   timeout: 30
   iam:
     role:
@@ -50,6 +51,7 @@ provider:
     APP_OPTIMIZER_POPULATION_SIZE: ${env:APP_OPTIMIZER_POPULATION_SIZE, 500}
     APP_OPTIMIZER_GENERATIONS: ${env:APP_OPTIMIZER_GENERATIONS, 500}
     APP_PARETO_OPTIONS_LIMIT: ${env:APP_PARETO_OPTIONS_LIMIT, 6}
+    APP_PROGRESS_UPDATE_INTERVAL: ${env:APP_PROGRESS_UPDATE_INTERVAL, 50}
     APP_RANDOMIZATION_STRENGTH: ${env:APP_RANDOMIZATION_STRENGTH, 0.08}
     APP_RANDOM_SEED: ${env:APP_RANDOM_SEED, 42}
     APP_CORS_ALLOW_ORIGINS: ${env:APP_CORS_ALLOW_ORIGINS, 'http://localhost:3000'}
@@ -113,5 +115,3 @@ resources:
             KeyType: HASH
     ScheduleResultsBucket:
       Type: AWS::S3::Bucket
-      Properties:
-        BucketName: nsga2is-sls-${sls:stage}-results-${aws:accountId}

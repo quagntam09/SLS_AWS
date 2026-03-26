@@ -22,6 +22,7 @@ class AppSettings(BaseSettings):
     optimizer_population_size: int = Field(default=250, ge=50, le=500)
     optimizer_generations: int = Field(default=400, ge=50, le=800)
     pareto_options_limit: int = Field(default=6, ge=3, le=6)
+    progress_update_interval: int = Field(default=50, ge=1, le=1000)
     randomization_strength: float = Field(default=0.08, ge=0.0, le=0.35)
     random_seed: int | None = None
     cors_allow_origins: str = Field(default="http://localhost:3000")

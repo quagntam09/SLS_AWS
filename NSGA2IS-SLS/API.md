@@ -97,6 +97,10 @@ Lấy trạng thái job hiện tại.
 - `completed`: đã có kết quả.
 - `failed`: job lỗi, xem `error`.
 
+### Progress update batching
+
+Worker không ghi progress xuống DynamoDB ở mọi thế hệ. Tần suất ghi được điều khiển bởi `APP_PROGRESS_UPDATE_INTERVAL` (mặc định `50`), nghĩa là chỉ cập nhật khi `generation % APP_PROGRESS_UPDATE_INTERVAL == 0` và luôn ghi ở thế hệ cuối cùng để đạt `100%`.
+
 ## 4. GET /api/v1/schedules/jobs/{request_id}/schedule
 
 Lấy lịch đã hoàn tất và các phương án Pareto.
@@ -213,3 +217,4 @@ serverless deploy --stage dev
 - `progress` endpoint trả DTO trạng thái, không trả full result.
 - `schedule` và `metrics` chỉ trả khi job đã `completed`.
 - CORS lấy từ `APP_CORS_ALLOW_ORIGINS`.
+- `APP_PROGRESS_UPDATE_INTERVAL` kiểm soát tần suất worker ghi progress xuống DynamoDB để giảm WCU và tránh throttling.
