@@ -9,22 +9,85 @@ import random
 from typing import List
 
 import numpy as np
-from scipy.spatial.distance import cdist
-from scipy.stats import cauchy, qmc
 
 from .core import CreationMode, Individual, ProblemWrapper
 from .selection import environmental_selection
+
+
+def _first_primes(count: int) -> np.ndarray:
+    primes: list[int] = []
+    candidate = 2
+
+    while len(primes) < count:
+        is_prime = True
+        for prime in primes:
+            if prime * prime > candidate:
+                break
+            if candidate % prime == 0:
+                is_prime = False
+                break
+
+        if is_prime:
+            primes.append(candidate)
+
+        candidate += 1
+
+    return np.array(primes, dtype=np.int64)
+
+
+def _van_der_corput(n: int, base: int) -> np.ndarray:
+    sequence = np.empty(n, dtype=np.float64)
+
+    for index in range(n):
+        value = 0.0
+        denominator = 1.0
+        number = index + 1
+
+        while number > 0:
+            number, remainder = divmod(number, base)
+            denominator *= base
+            value += remainder / denominator
+
+        sequence[index] = value
+
+    return sequence
+
+
+def _halton_sequence(n: int, n_var: int) -> np.ndarray:
+    bases = _first_primes(n_var)
+    sequence = np.column_stack([_van_der_corput(n, int(base)) for base in bases])
+    shift = np.random.rand(n_var)
+    return np.mod(sequence + shift, 1.0)
+
+
+def _latin_hypercube_sequence(n: int, n_var: int) -> np.ndarray:
+    intervals = (np.arange(n, dtype=np.float64)[:, None] + np.random.rand(n, n_var)) / float(n)
+    result = np.empty_like(intervals)
+
+    for dimension in range(n_var):
+        result[:, dimension] = intervals[np.random.permutation(n), dimension]
+
+    return result
+
+
+def _scale_unit_interval(samples: np.ndarray, xl: np.ndarray, xu: np.ndarray) -> np.ndarray:
+    return xl + samples * (xu - xl)
+
+
+def _pairwise_distances(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    diff = a[:, None, :] - b[None, :, :]
+    return np.sqrt(np.sum(diff * diff, axis=2))
 
 
 def _sample_in_bounds(n: int, n_var: int, xl: np.ndarray, xu: np.ndarray, use_sobol: bool) -> np.ndarray:
     """Lấy n điểm trong [xl, xu] bằng Sobol (mặc định) hoặc Latin Hypercube."""
     if use_sobol:
         n_rounded = 2 ** math.ceil(math.log2(max(n, 2)))
-        raw = qmc.Sobol(d=n_var, scramble=True).random(n=n_rounded)[:n]
+        raw = _halton_sequence(n_rounded, n_var)[:n]
     else:
-        raw = qmc.LatinHypercube(d=n_var).random(n=n)
+        raw = _latin_hypercube_sequence(n, n_var)
 
-    return qmc.scale(raw, xl, xu)
+    return _scale_unit_interval(raw, xl, xu)
 
 
 def initialize_obl(problem: ProblemWrapper, pop_size: int, use_gobl: bool = True, use_sobol: bool = True) -> List[Individual]:
@@ -70,7 +133,7 @@ def get_neighborhood_indices(population: List[Individual], n_neighbors: int) -> 
     spread = np.where(f_max - f_min == 0, 1e-10, f_max - f_min)
     F_norm = (F - f_min) / spread
 
-    dists = cdist(F_norm, F_norm)
+    dists = _pairwise_distances(F_norm, F_norm)
     k = min(n_neighbors, len(population) - 1)
     return np.argpartition(dists, kth=k, axis=1)[:, :k]
 
@@ -87,7 +150,7 @@ def de_mutation(
 ) -> Individual:
     """Tạo một con lai DE với chiến lược chọn ngẫu nhiên theo xác suất."""
     target = population[target_idx]
-    F = float(np.clip(cauchy.rvs(loc=mean_F, scale=0.1), 0.1, 1.0))
+    F = float(np.clip(mean_F + 0.1 * np.tan(np.pi * (np.random.rand() - 0.5)), 0.1, 1.0))
     CR = float(np.clip(np.random.normal(mean_CR, 0.1), 0.0, 1.0))
     use_global = np.random.rand() < 0.3
 

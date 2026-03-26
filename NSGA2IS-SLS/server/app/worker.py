@@ -132,11 +132,16 @@ def run_worker() -> None:
 
 
 def main() -> int:
-    _install_signal_handlers()
-    print("[worker] Starting SQS long-polling worker")
-    run_worker()
-    print("[worker] Worker stopped")
-    return 0
+    try:
+        _install_signal_handlers()
+        print("[worker] Starting SQS long-polling worker")
+        run_worker()
+        print("[worker] Worker stopped normally")
+        return 0
+    except Exception as e:
+        print(f"[worker] CRITICAL ERROR: {e}")
+        traceback.print_exc() # In đầy đủ dấu vết lỗi
+        return 1
 
 
 if __name__ == "__main__":

@@ -64,7 +64,7 @@ provider:
 
 functions:
   api:
-    handler: server.app.main.handler
+    handler: bootstrap.handler
     timeout: 30
     events:
       - httpApi:
@@ -81,9 +81,18 @@ package:
     - '!.git/**'
     - '!venv/**'
     - '!.venv/**'
+    - '!NSGA2IS-SLS/.venv/**'
+    - '!NSGA2IS-SLS/.serverless/**'
+    - '!NSGA2IS-SLS/node_modules/**'
+    - '!NSGA2IS-SLS/tests/**'
+    - '!NSGA2IS-SLS/artifacts/**'
+    - '!NSGA2IS-SLS/**/*.md'
+    - '!NSGA2IS-SLS/**/*.json'
+    - '!NSGA2IS-SLS/**/*.sh'
     - '!**/__pycache__/**'
     - '!**/*.pyc'
     - '!.serverless/**'
+    - '!.env'
     - '!server/src/**'
 
 resources:

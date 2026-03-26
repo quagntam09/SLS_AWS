@@ -7,9 +7,13 @@ from __future__ import annotations
 from typing import List
 
 import numpy as np
-from scipy.spatial.distance import cdist
 
 from .core import Individual
+
+
+def _pairwise_distances(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    diff = a[:, None, :] - b[None, :, :]
+    return np.sqrt(np.sum(diff * diff, axis=2))
 
 
 def fast_non_dominated_sort(population: List[Individual]) -> List[List[Individual]]:
@@ -81,7 +85,7 @@ def remove_duplicates(population: List[Individual], epsilon: float = 1e-5) -> Li
         return population
 
     F = np.array([ind.F for ind in population])
-    dists = cdist(F, F)
+    dists = _pairwise_distances(F, F)
     is_dup = np.zeros(len(population), dtype=bool)
 
     for i in range(len(population)):
