@@ -34,10 +34,8 @@ def _required_env(name: str) -> str:
 
 
 def _queue_client():
-    region_name = os.getenv(AWS_REGION_ENV)
-    if region_name:
-        return boto3.client("sqs", region_name=region_name)
-    return boto3.client("sqs")
+    region_name = os.environ.get(AWS_REGION_ENV, "ap-southeast-1")
+    return boto3.client("sqs", region_name=region_name)
 
 
 def _install_signal_handlers() -> None:
@@ -103,6 +101,8 @@ def run_worker() -> None:
     progress_update_interval = settings.progress_update_interval
     sqs_client = _queue_client()
 
+    print(f"Bắt đầu lắng nghe tại Queue: {queue_url}")
+
     while not _stop_event.is_set():
         logger.info("[worker] Polling for new messages...")
         try:
@@ -126,10 +126,12 @@ def run_worker() -> None:
                         ReceiptHandle=str(message["ReceiptHandle"]),
                     )
                 except Exception:
+                    traceback.print_exc()
                     logger.exception("[worker] Failed to process message")
                     if not _stop_event.is_set():
                         time.sleep(ERROR_SLEEP_SECONDS)
         except Exception:
+            traceback.print_exc()
             logger.exception("[worker] Polling error")
             if not _stop_event.is_set():
                 time.sleep(ERROR_SLEEP_SECONDS)
