@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ...nsga2_improved import NSGA2ImprovedSmart, ProblemWrapper
+from nsga2_improved import NSGA2ImprovedSmart, ProblemWrapper
 
 from .schemas import (
     AlgorithmRunMetricsDTO,
