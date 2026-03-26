@@ -160,7 +160,7 @@ User=${SERVICE_USER}
 Group=${SERVICE_USER}
 WorkingDirectory=${REPO_DIR}
 EnvironmentFile=${ENV_FILE}
-Environment=PYTHONPATH=${REPO_DIR}
+Environment=PYTHONPATH=${REPO_DIR}/server
 ExecStart=${REPO_DIR}/.venv/bin/uvicorn server.app.main:app --host 127.0.0.1 --port 8000 --proxy-headers
 Restart=always
 RestartSec=5

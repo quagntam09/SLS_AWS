@@ -9,7 +9,7 @@ User=ubuntu
 Group=ubuntu
 WorkingDirectory=/opt/nsga2is-sls/NSGA2IS-SLS
 EnvironmentFile=/etc/nsga2is-sls-api.env
-Environment=PYTHONPATH=/opt/nsga2is-sls/NSGA2IS-SLS
+Environment=PYTHONPATH=/opt/nsga2is-sls/NSGA2IS-SLS/server
 ExecStart=/opt/nsga2is-sls/NSGA2IS-SLS/.venv/bin/uvicorn server.app.main:app --host 127.0.0.1 --port 8000 --proxy-headers
 Restart=always
 RestartSec=5

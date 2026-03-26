@@ -41,7 +41,7 @@ provider:
                   - Ref: ScheduleResultsBucket
                   - "/*"
   environment:
-    PYTHONPATH: "/var/task:/var/task/server"
+    PYTHONPATH: "/var/task:/var/task/NSGA2IS-SLS/server"
     APP_ENV: ${env:APP_ENV, 'production'}
     APP_OPTIMIZER_POPULATION_SIZE: ${env:APP_OPTIMIZER_POPULATION_SIZE, 500}
     APP_OPTIMIZER_GENERATIONS: ${env:APP_OPTIMIZER_GENERATIONS, 500}
@@ -50,6 +50,7 @@ provider:
     APP_RANDOMIZATION_STRENGTH: ${env:APP_RANDOMIZATION_STRENGTH, 0.08}
     APP_RANDOM_SEED: ${env:APP_RANDOM_SEED, 42}
     APP_CORS_ALLOW_ORIGINS: ${env:APP_CORS_ALLOW_ORIGINS, 'http://localhost:3000'}
+    ROOT_PATH: /dev
     SCHEDULE_QUEUE_URL:
       Ref: ScheduleJobsQueue
     SCHEDULE_TABLE_NAME:

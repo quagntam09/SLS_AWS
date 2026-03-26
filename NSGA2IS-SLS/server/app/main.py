@@ -5,6 +5,7 @@ Entrypoint FastAPI cho hệ thống lập lịch ca trực bác sĩ.
 from __future__ import annotations
 
 import logging
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,12 +17,22 @@ from app.config import get_settings
 
 logger = logging.getLogger("uvicorn.error")
 
+
+def _resolve_root_path() -> str:
+    root_path = os.getenv("ROOT_PATH", "").strip()
+    if not root_path:
+        return ""
+    if not root_path.startswith("/"):
+        root_path = f"/{root_path}"
+    return root_path.rstrip("/") if root_path != "/" else root_path
+
 app = FastAPI(
     title="Doctor Duty Scheduling API",
     description="API lập lịch ca trực bác sĩ bằng NSGA-II cải tiến",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    root_path=_resolve_root_path(),
 )
 
 app.add_middleware(
@@ -69,4 +80,4 @@ def unhandled_exception_handler(_request, exc: Exception) -> JSONResponse:
     )
 
 # AWS Lambda entrypoint for API Gateway HTTP API events.
-handler = Mangum(app)
+handler = Mangum(app, lifespan="off", api_gateway_base_path="/dev")
