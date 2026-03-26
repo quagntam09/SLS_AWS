@@ -17,7 +17,7 @@ from app.domain.schemas import (
 )
 
 
-JobStatus = Literal["queued", "running", "completed", "failed"]
+JobStatus = Literal["PENDING", "RUNNING", "COMPLETED", "FAILED"]
 
 
 @dataclass
@@ -42,7 +42,7 @@ class ScheduleJobManager:
         request_id = str(uuid4())
         job = _JobState(
             request_id=request_id,
-            status="queued",
+            status="PENDING",
             progress_percent=0,
             message="Yêu cầu đã được đưa vào hàng đợi",
         )
@@ -84,9 +84,9 @@ class ScheduleJobManager:
             job = self._jobs.get(request_id)
             if job is None:
                 return "missing", None, None
-            if job.status == "failed":
+            if job.status == "FAILED":
                 return "failed", None, job.error
-            if job.status != "completed" or job.result is None:
+            if job.status != "COMPLETED" or job.result is None:
                 return "pending", None, None
             return "ok", job.result, None
 
@@ -125,7 +125,7 @@ class ScheduleJobManager:
 
             self._update(
                 request_id,
-                status="completed",
+                status="COMPLETED",
                 progress_percent=100,
                 message="Hoàn tất sinh lịch trực",
                 result=result,
@@ -133,7 +133,7 @@ class ScheduleJobManager:
         except Exception as exc:
             self._update(
                 request_id,
-                status="failed",
+                status="FAILED",
                 progress_percent=100,
                 message="Sinh lịch thất bại",
                 error=str(exc),

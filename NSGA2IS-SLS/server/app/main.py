@@ -8,6 +8,7 @@ import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from mangum import Mangum
 
 from app.api.router import api_router
@@ -57,6 +58,15 @@ def health_check() -> dict[str, str]:
 
 
 app.include_router(api_router)
+
+
+@app.exception_handler(Exception)
+def unhandled_exception_handler(_request, exc: Exception) -> JSONResponse:
+    logger.exception("Unhandled application error")
+    return JSONResponse(
+        status_code=500,
+        content={"message": "Internal Server Error", "detail": str(exc)},
+    )
 
 # AWS Lambda entrypoint for API Gateway HTTP API events.
 handler = Mangum(app)

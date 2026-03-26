@@ -32,21 +32,47 @@ RETRIABLE_ERROR_CODES = {
     "SlowDown",
 }
 
+STATUS_PENDING = "PENDING"
+STATUS_RUNNING = "RUNNING"
+STATUS_COMPLETED = "COMPLETED"
+STATUS_FAILED = "FAILED"
+
+
+def _normalize_status(status: object) -> str:
+    if not isinstance(status, str):
+        return STATUS_PENDING
+
+    normalized = status.strip().upper()
+    aliases = {
+        "QUEUED": STATUS_PENDING,
+        "PENDING": STATUS_PENDING,
+        "RUNNING": STATUS_RUNNING,
+        "COMPLETED": STATUS_COMPLETED,
+        "FAILED": STATUS_FAILED,
+    }
+    return aliases.get(normalized, normalized)
+
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _required_env(name: str) -> str:
+def _required_env(name: str, legacy_name: str | None = None) -> str:
     value = os.getenv(name)
+    if not value and legacy_name:
+        value = os.getenv(legacy_name)
     if not value:
+        if legacy_name:
+            raise RuntimeError(
+                f"Missing required environment variable: {name} (or legacy {legacy_name})"
+            )
         raise RuntimeError(f"Missing required environment variable: {name}")
     return value
 
 
 @lru_cache(maxsize=1)
 def _table():
-    table_name = _required_env("SCHEDULE_TABLE_NAME")
+    table_name = _required_env("TABLE_NAME", "SCHEDULE_TABLE_NAME")
     dynamodb = boto3.resource("dynamodb")
     return dynamodb.Table(table_name)
 
@@ -62,11 +88,19 @@ def _s3_client():
 
 
 def _queue_url() -> str:
-    return _required_env("SCHEDULE_QUEUE_URL")
+    return _required_env("QUEUE_URL", "SCHEDULE_QUEUE_URL")
 
 
 def _bucket_name() -> str:
-    return _required_env("SCHEDULE_RESULTS_BUCKET")
+    return _required_env("BUCKET_NAME", "SCHEDULE_RESULTS_BUCKET")
+
+
+def _result_s3_key(request_id: str) -> str:
+    return f"results/{request_id}.json"
+
+
+def _result_s3_url(bucket_name: str, s3_key: str) -> str:
+    return f"s3://{bucket_name}/{s3_key}"
 
 
 def _truncate_error(error: str) -> str:
@@ -115,14 +149,20 @@ def _best_effort_mark_failed(request_id: str, error: str) -> None:
             lambda: _table().update_item(
                 Key={"request_id": request_id},
                 UpdateExpression=(
-                    "SET #s = :s, progress_percent = :p, #m = :m, #e = :e, updated_at = :u"
+                    "SET #s = :s, progress_percent = :p, #m = :m, #e = :e, #t = :t, updated_at = :u"
                 ),
-                ExpressionAttributeNames={"#s": "status", "#m": "message", "#e": "error"},
+                ExpressionAttributeNames={
+                    "#s": "status",
+                    "#m": "message",
+                    "#e": "error",
+                    "#t": "traceback",
+                },
                 ExpressionAttributeValues={
-                    ":s": "failed",
+                    ":s": STATUS_FAILED,
                     ":p": 100,
                     ":m": "Schedule generation failed",
                     ":e": _truncate_error(error),
+                    ":t": error,
                     ":u": _utc_now(),
                 },
             ),
@@ -140,13 +180,15 @@ def create_schedule_request(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     item = {
         "request_id": request_id,
-        "status": "queued",
+        "status": STATUS_PENDING,
         "progress_percent": 0,
-        "message": "Request queued for processing",
+        "message": "Request accepted and queued for processing",
         "created_at": now,
         "updated_at": now,
         "error": None,
+        "traceback": None,
         "result_s3_key": None,
+        "result_url": None,
     }
     _with_retries(
         "DynamoDB put_item",
@@ -175,9 +217,9 @@ def create_schedule_request(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     return {
         "request_id": request_id,
-        "status": "queued",
+        "status": STATUS_PENDING,
         "progress_percent": 0,
-        "message": "Schedule generation request submitted",
+        "message": "Schedule generation request accepted",
     }
 
 
@@ -194,7 +236,7 @@ def mark_running(
             ConditionExpression="attribute_exists(request_id)",
             ExpressionAttributeNames={"#s": "status", "#m": "message"},
             ExpressionAttributeValues={
-                ":s": "running",
+                ":s": STATUS_RUNNING,
                 ":p": progress_percent,
                 ":m": message,
                 ":u": _utc_now(),
@@ -204,11 +246,14 @@ def mark_running(
 
 
 def mark_completed(request_id: str, result: Dict[str, Any]) -> None:
-    s3_key = f"results/{request_id}.json"
+    bucket_name = _bucket_name()
+    s3_key = _result_s3_key(request_id)
+    result_url = _result_s3_url(bucket_name, s3_key)
+
     _with_retries(
         "S3 put_object",
         lambda: _s3_client().put_object(
-            Bucket=_bucket_name(),
+            Bucket=bucket_name,
             Key=s3_key,
             Body=json.dumps(result).encode("utf-8"),
             ContentType="application/json",
@@ -221,17 +266,24 @@ def mark_completed(request_id: str, result: Dict[str, Any]) -> None:
             Key={"request_id": request_id},
             UpdateExpression=(
                 "SET #s = :s, progress_percent = :p, #m = :m, "
-                "result_s3_key = :k, updated_at = :u, #e = :e"
+                "result_s3_key = :k, result_url = :r, updated_at = :u, #e = :e, #t = :t"
             ),
             ConditionExpression="attribute_exists(request_id)",
-            ExpressionAttributeNames={"#s": "status", "#m": "message", "#e": "error"},
+            ExpressionAttributeNames={
+                "#s": "status",
+                "#m": "message",
+                "#e": "error",
+                "#t": "traceback",
+            },
             ExpressionAttributeValues={
-                ":s": "completed",
+                ":s": STATUS_COMPLETED,
                 ":p": 100,
                 ":m": "Schedule generation completed successfully",
                 ":k": s3_key,
+                ":r": result_url,
                 ":u": _utc_now(),
                 ":e": None,
+                ":t": None,
             },
         ),
     )
@@ -252,13 +304,14 @@ def get_schedule_progress(request_id: str) -> Optional[Dict[str, Any]]:
 
     result = None
     result_error: Optional[str] = None
-    if item.get("status") == "completed" and item.get("result_s3_key"):
+    result_s3_key = item.get("result_s3_key")
+    if _normalize_status(item.get("status", STATUS_PENDING)) == STATUS_COMPLETED and result_s3_key:
         try:
             obj = _with_retries(
                 "S3 get_object",
                 lambda: _s3_client().get_object(
                     Bucket=_bucket_name(),
-                    Key=item["result_s3_key"],
+                    Key=str(result_s3_key),
                 ),
             )
             result = json.loads(obj["Body"].read().decode("utf-8"))
@@ -274,8 +327,8 @@ def get_schedule_progress(request_id: str) -> Optional[Dict[str, Any]]:
 
     return {
         "request_id": item["request_id"],
-        "status": item.get("status", "queued"),
-        "progress_percent": float(item.get("progress_percent", 0)),
+        "status": _normalize_status(item.get("status", STATUS_PENDING)),
+        "progress_percent": int(item.get("progress_percent", 0)),
         "message": item.get("message", ""),
         "result": result,
         "error": combined_error,

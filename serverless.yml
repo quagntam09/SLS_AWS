@@ -23,21 +23,16 @@ provider:
         - Effect: Allow
           Action:
             - sqs:SendMessage
-            - sqs:ReceiveMessage
-            - sqs:DeleteMessage
-            - sqs:GetQueueAttributes
           Resource:
             - Fn::GetAtt: [ScheduleJobsQueue, Arn]
         - Effect: Allow
           Action:
             - dynamodb:GetItem
             - dynamodb:PutItem
-            - dynamodb:UpdateItem
           Resource:
             - Fn::GetAtt: [ScheduleRequestsTable, Arn]
         - Effect: Allow
           Action:
-            - s3:PutObject
             - s3:GetObject
           Resource:
             - Fn::Join:
@@ -60,6 +55,12 @@ provider:
     SCHEDULE_TABLE_NAME:
       Ref: ScheduleRequestsTable
     SCHEDULE_RESULTS_BUCKET:
+      Ref: ScheduleResultsBucket
+    QUEUE_URL:
+      Ref: ScheduleJobsQueue
+    TABLE_NAME:
+      Ref: ScheduleRequestsTable
+    BUCKET_NAME:
       Ref: ScheduleResultsBucket
 
 functions:
@@ -100,7 +101,7 @@ resources:
     ScheduleJobsQueue:
       Type: AWS::SQS::Queue
       Properties:
-        VisibilityTimeout: 7200
+        VisibilityTimeout: 1800
         MessageRetentionPeriod: 1209600
     ScheduleRequestsTable:
       Type: AWS::DynamoDB::Table
@@ -115,6 +116,52 @@ resources:
             KeyType: HASH
     ScheduleResultsBucket:
       Type: AWS::S3::Bucket
+    WorkerInstanceRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - ec2.amazonaws.com
+              Action:
+                - sts:AssumeRole
+        Policies:
+          - PolicyName: nsga2is-sls-worker-access
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - sqs:ReceiveMessage
+                    - sqs:DeleteMessage
+                    - sqs:ChangeMessageVisibility
+                    - sqs:GetQueueAttributes
+                  Resource:
+                    - Fn::GetAtt: [ScheduleJobsQueue, Arn]
+                - Effect: Allow
+                  Action:
+                    - dynamodb:UpdateItem
+                    - dynamodb:GetItem
+                  Resource:
+                    - Fn::GetAtt: [ScheduleRequestsTable, Arn]
+                - Effect: Allow
+                  Action:
+                    - s3:PutObject
+                  Resource:
+                    - Fn::Join:
+                        - ""
+                        - - "arn:aws:s3:::"
+                          - Ref: ScheduleResultsBucket
+                          - "/*"
+    WorkerInstanceProfile:
+      Type: AWS::IAM::InstanceProfile
+      Properties:
+        Path: /
+        Roles:
+          - Ref: WorkerInstanceRole
 
   Outputs:
     ScheduleJobsQueueUrl:
@@ -129,3 +176,9 @@ resources:
     ScheduleResultsBucketName:
       Value:
         Ref: ScheduleResultsBucket
+    WorkerInstanceRoleArn:
+      Value:
+        Fn::GetAtt: [WorkerInstanceRole, Arn]
+    WorkerInstanceProfileName:
+      Value:
+        Ref: WorkerInstanceProfile

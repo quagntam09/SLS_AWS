@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import signal
 import time
@@ -18,11 +19,11 @@ from app.domain.schemas import ScheduleRunRequestDTO
 QUEUE_URL_ENV = "SCHEDULE_QUEUE_URL"
 AWS_REGION_ENV = "AWS_REGION"
 RECEIVE_WAIT_SECONDS = 20
-MESSAGE_VISIBILITY_TIMEOUT_SECONDS = 7200
-EMPTY_QUEUE_SLEEP_SECONDS = 1
+MESSAGE_VISIBILITY_TIMEOUT_SECONDS = 1800
 ERROR_SLEEP_SECONDS = 5
 
 _stop_event = Event()
+logger = logging.getLogger(__name__)
 
 
 def _required_env(name: str) -> str:
@@ -96,14 +97,14 @@ def _process_message(message: dict[str, object], progress_update_interval: int) 
 
 
 def run_worker() -> None:
-    print(f"[debug] Stop event is set: {_stop_event.is_set()}")
     queue_url = _required_env(QUEUE_URL_ENV)
-    
+
     settings = get_settings()
     progress_update_interval = settings.progress_update_interval
     sqs_client = _queue_client()
 
     while not _stop_event.is_set():
+        logger.info("[worker] Polling for new messages...")
         try:
             response = sqs_client.receive_message(
                 QueueUrl=queue_url,
@@ -115,7 +116,6 @@ def run_worker() -> None:
             )
             messages = response.get("Messages", [])
             if not messages:
-                time.sleep(EMPTY_QUEUE_SLEEP_SECONDS)
                 continue
 
             for message in messages:
@@ -126,15 +126,18 @@ def run_worker() -> None:
                         ReceiptHandle=str(message["ReceiptHandle"]),
                     )
                 except Exception:
-                    print(f"[worker] Failed to process message: {traceback.format_exc()}")
-                    time.sleep(ERROR_SLEEP_SECONDS)
+                    logger.exception("[worker] Failed to process message")
+                    if not _stop_event.is_set():
+                        time.sleep(ERROR_SLEEP_SECONDS)
         except Exception:
-            print(f"[worker] Polling error: {traceback.format_exc()}")
-            time.sleep(ERROR_SLEEP_SECONDS)
+            logger.exception("[worker] Polling error")
+            if not _stop_event.is_set():
+                time.sleep(ERROR_SLEEP_SECONDS)
 
 
 def main() -> int:
     try:
+        logging.basicConfig(level=logging.INFO, format="%(message)s")
         _install_signal_handlers()
         print("[worker] Starting SQS long-polling worker")
         run_worker()
@@ -142,7 +145,7 @@ def main() -> int:
         return 0
     except Exception as e:
         print(f"[worker] CRITICAL ERROR: {e}")
-        traceback.print_exc() # In đầy đủ dấu vết lỗi
+        traceback.print_exc()
         return 1
 
 

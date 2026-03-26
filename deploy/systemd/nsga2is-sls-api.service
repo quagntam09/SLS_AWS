@@ -1,0 +1,20 @@
+[Unit]
+Description=NSGA2IS-SLS FastAPI API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/nsga2is-sls/NSGA2IS-SLS
+EnvironmentFile=/etc/nsga2is-sls-api.env
+Environment=PYTHONPATH=/opt/nsga2is-sls/NSGA2IS-SLS
+ExecStart=/opt/nsga2is-sls/NSGA2IS-SLS/.venv/bin/uvicorn server.app.main:app --host 127.0.0.1 --port 8000 --proxy-headers
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

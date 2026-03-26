@@ -1,11 +1,11 @@
 # NSGA2IS-SLS
 
-Hệ thống tối ưu lịch trực bác sĩ bằng NSGA-II cải tiến. Ứng dụng cung cấp FastAPI để nhận yêu cầu sinh lịch, theo dõi tiến độ và lấy kết quả sau khi worker Lambda hoàn tất xử lý trên AWS.
+Hệ thống tối ưu lịch trực bác sĩ bằng NSGA-II cải tiến. API FastAPI trên Lambda chỉ nhận request và đẩy vào SQS; EC2 worker long-poll queue, chạy thuật toán và ghi kết quả lên S3.
 
 ## Tổng Quan
 
-- `POST /api/v1/schedules/run` tạo request, lưu vào DynamoDB và đẩy message vào SQS, sau đó trả `request_id` ngay.
-- Worker Lambda đọc message, chạy NSGA-II, lưu kết quả vào S3 và cập nhật trạng thái job.
+- `POST /api/v1/schedules/run` tạo request, lưu trạng thái `PENDING` vào DynamoDB và đẩy message vào SQS, sau đó trả `request_id` ngay với `202 Accepted`.
+- EC2 worker đọc message, chạy NSGA-II, lưu kết quả vào S3 và cập nhật trạng thái job.
 - `GET /api/v1/schedules/progress/{request_id}` trả trạng thái hiện tại của job.
 - `GET /api/v1/schedules/jobs/{request_id}/schedule` và `/metrics` chỉ trả khi job đã `completed`.
 - `GET /health` trả trạng thái ứng dụng.
@@ -70,9 +70,9 @@ APP_CORS_ALLOW_ORIGINS=http://localhost:3000
 Các biến runtime AWS cần cho luồng submit job:
 
 ```bash
-SCHEDULE_QUEUE_URL=
-SCHEDULE_TABLE_NAME=
-SCHEDULE_RESULTS_BUCKET=
+QUEUE_URL=
+TABLE_NAME=
+BUCKET_NAME=
 ```
 
 `POST /api/v1/schedules/run` phụ thuộc vào ba biến này. Nếu thiếu một trong số đó hoặc AWS không truy cập được, API sẽ trả `503 Service Unavailable` thay vì `500 Internal Server Error`.
@@ -102,6 +102,31 @@ Xem thông tin stack:
 ```bash
 serverless info --stage dev
 ```
+
+## Deploy EC2 API
+
+Nếu bạn muốn chạy FastAPI trên EC2 thay vì Lambda, dùng bộ cấu hình trong `deploy/`:
+
+- `ec2_api_setup.sh`: script dựng máy, cài Python/nginx, clone source, tạo virtualenv, tạo systemd unit và cấu hình nginx reverse proxy
+- `deploy/user-data/ec2-api-user-data.sh`: user-data bootstrap để EC2 tự chạy `ec2_api_setup.sh` khi launch
+- `deploy/user-data/launch-template-user-data.sh`: mẫu user-data hoàn chỉnh để dán thẳng vào Launch Template trong AWS Console
+- `deploy/systemd/nsga2is-sls-api.service`: mẫu systemd unit cho FastAPI
+- `deploy/nginx/nsga2is-sls-api.conf`: mẫu reverse proxy nginx về `127.0.0.1:8000`
+
+Flow mặc định của script:
+
+1. Lấy `QUEUE_URL`, `TABLE_NAME`, `BUCKET_NAME` từ CloudFormation stack
+2. Clone repo vào `/opt/nsga2is-sls`
+3. Tạo virtualenv tại `/opt/nsga2is-sls/NSGA2IS-SLS/.venv`
+4. Chạy `uvicorn server.app.main:app --host 127.0.0.1 --port 8000`
+5. Nginx nhận request public và proxy vào Uvicorn
+
+Để dùng script, điền giá trị thật cho `STACK_NAME`, `GIT_REPO_URL`, `AWS_REGION`, `SERVER_NAME` rồi chạy với quyền root trên Ubuntu.
+Nếu chưa có domain, có thể để `SERVER_NAME=_` trong nginx config.
+
+Nếu bạn launch instance bằng Launch Template hoặc Auto Scaling, có thể gắn luôn user-data script trên để EC2 tự bootstrap lúc khởi động.
+
+Nếu muốn dán trực tiếp vào AWS Console, mở [deploy/user-data/launch-template-user-data.sh](deploy/user-data/launch-template-user-data.sh) và thay các biến ở đầu file: `STACK_NAME`, `GIT_REPO_URL`, `AWS_REGION`, `SERVER_NAME`.
 
 ## Endpoint Reference
 

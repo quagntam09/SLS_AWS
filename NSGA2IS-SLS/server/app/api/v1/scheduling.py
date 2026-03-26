@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, status as http_status
 from botocore.exceptions import BotoCoreError, ClientError
 
 from app.application.services.async_schedule_service import (
@@ -15,8 +15,6 @@ from app.application.services.schedule_view_builder import (
     build_metrics_response,
     build_schedule_response,
 )
-from app.application.use_cases.generate_schedule import GenerateScheduleUseCase
-from app.domain.nsga_scheduler import _validate_hard_constraints
 from app.domain.schemas import (
     ScheduleGenerationEnvelopeDTO,
     ScheduleJobMetricsResponseDTO,
@@ -35,13 +33,13 @@ def _require_completed_envelope(request_id: str) -> ScheduleGenerationEnvelopeDT
     if progress is None:
         raise HTTPException(status_code=404, detail="Không tìm thấy request_id")
 
-    status = progress.get("status", "queued")
-    if status == "failed":
+    status = str(progress.get("status", "PENDING")).upper()
+    if status == "FAILED":
         raise HTTPException(
             status_code=409,
             detail=progress.get("error") or "Sinh lịch thất bại",
         )
-    if status != "completed" or progress.get("result") is None:
+    if status != "COMPLETED" or progress.get("result") is None:
         raise HTTPException(
             status_code=409,
             detail="Lịch chưa sẵn sàng hoặc job đang chạy",
@@ -53,22 +51,25 @@ def _require_completed_envelope(request_id: str) -> ScheduleGenerationEnvelopeDT
     "/run",
     response_model=ScheduleRequestAcceptedDTO,
     summary="Bắt đầu tạo lịch trực",
+    status_code=http_status.HTTP_202_ACCEPTED,
 )
 def run_schedule(payload: ScheduleRunRequestDTO) -> ScheduleRequestAcceptedDTO:
     """Đưa job vào hàng đợi tối ưu NSGA-II với payload nghiệp vụ."""
     try:
-        generation_request = GenerateScheduleUseCase()._build_generation_request(payload)
-        _validate_hard_constraints(generation_request)
         return ScheduleRequestAcceptedDTO.model_validate(
             create_schedule_request(payload.model_dump(mode="json"))
         )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except (RuntimeError, BotoCoreError, ClientError) as exc:
         logger.exception("Unable to submit schedule request")
         raise HTTPException(
             status_code=503,
             detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        logger.exception("Unexpected error while submitting schedule request")
+        raise HTTPException(
+            status_code=500,
+            detail="Unexpected error while submitting schedule request",
         ) from exc
 
 
@@ -83,7 +84,7 @@ def get_schedule_progress(request_id: str) -> ScheduleJobStatusDTO:
         raise HTTPException(status_code=404, detail="Không tìm thấy request_id")
     return ScheduleJobStatusDTO(
         request_id=progress["request_id"],
-        status=progress.get("status", "queued"),
+        status=str(progress.get("status", "PENDING")).upper(),
         progress_percent=int(progress.get("progress_percent", 0)),
         message=progress.get("message", ""),
         error=progress.get("error"),

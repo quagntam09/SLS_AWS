@@ -10,7 +10,7 @@ Tài liệu tham chiếu cho luồng async trên AWS.
 Luồng production trên AWS:
 
 1. `POST /api/v1/schedules/run` ghi request vào DynamoDB và đẩy message vào SQS.
-2. Worker Lambda đọc message, chạy NSGA-II, rồi lưu kết quả vào S3.
+2. EC2 worker đọc message, chạy NSGA-II, rồi lưu kết quả vào S3.
 3. API `progress`, `schedule`, `metrics` đọc lại dữ liệu từ DynamoDB/S3.
 
 ## 2. POST /api/v1/schedules/run
@@ -57,15 +57,15 @@ Tạo job sinh lịch mới.
 ```json
 {
   "request_id": "550e8400-e29b-41d4-a716-446655440000",
-  "status": "queued",
+  "status": "PENDING",
   "progress_percent": 0,
-  "message": "Schedule generation request submitted"
+  "message": "Schedule generation request accepted"
 }
 ```
 
 ### Status codes
 
-- `200`: request hợp lệ và đã được xếp hàng.
+- `202`: request hợp lệ và đã được xếp hàng.
 - `400`: lỗi validate nghiệp vụ.
 - `422`: lỗi validate schema.
 - `503`: thiếu cấu hình AWS hoặc không truy cập được DynamoDB/SQS/S3.
@@ -79,7 +79,7 @@ Lấy trạng thái job hiện tại.
 ```json
 {
   "request_id": "550e8400-e29b-41d4-a716-446655440000",
-  "status": "running",
+  "status": "RUNNING",
   "progress_percent": 65,
   "message": "Đang tối ưu bằng NSGA-II cải tiến (thế hệ 260/400)",
   "error": null
@@ -93,10 +93,10 @@ Lấy trạng thái job hiện tại.
 
 ### Ý nghĩa status
 
-- `queued`: đã vào DynamoDB/SQS.
-- `running`: worker Lambda đang xử lý.
-- `completed`: đã có kết quả.
-- `failed`: job lỗi, xem `error`.
+- `PENDING`: đã vào DynamoDB/SQS.
+- `RUNNING`: worker đang xử lý.
+- `COMPLETED`: đã có kết quả.
+- `FAILED`: job lỗi, xem `error`.
 
 ### Progress update batching
 
@@ -185,10 +185,10 @@ Response:
 Để xác nhận thuật toán đã chạy trên AWS, kiểm tra theo thứ tự sau:
 
 1. `POST /api/v1/schedules/run` trả `request_id`.
-2. `GET /api/v1/schedules/progress/{request_id}` chuyển sang `completed`.
+2. `GET /api/v1/schedules/progress/{request_id}` chuyển sang `COMPLETED`.
 3. `GET /api/v1/schedules/jobs/{request_id}/schedule` trả 200.
 4. `GET /api/v1/schedules/jobs/{request_id}/metrics` trả 200.
-5. DynamoDB item có `status=completed` và `result_s3_key`.
+5. DynamoDB item có `status=COMPLETED` và `result_s3_key`.
 6. S3 có object `results/{request_id}.json`.
 
 ### AWS CLI ví dụ

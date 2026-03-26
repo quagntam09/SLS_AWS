@@ -247,7 +247,7 @@ class ScheduleRequestAcceptedDTO(BaseModel):
     """Phản hồi khi server nhận yêu cầu và xử lý bất đồng bộ."""
 
     request_id: str = Field(description="Mã yêu cầu dùng để tra cứu tiến độ")
-    status: Literal["queued", "running", "completed", "failed"]
+    status: Literal["PENDING", "RUNNING", "COMPLETED", "FAILED"]
     progress_percent: int = Field(ge=0, le=100)
     message: str
 
@@ -256,7 +256,7 @@ class ScheduleJobStatusDTO(BaseModel):
     """Trạng thái tiến độ job (không gắn kết quả lịch/chỉ số — gọi API riêng)."""
 
     request_id: str
-    status: Literal["queued", "running", "completed", "failed"]
+    status: Literal["PENDING", "RUNNING", "COMPLETED", "FAILED"]
     progress_percent: int = Field(ge=0, le=100)
     message: str
     error: Optional[str] = None
