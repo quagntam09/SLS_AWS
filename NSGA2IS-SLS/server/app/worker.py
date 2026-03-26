@@ -10,10 +10,10 @@ from threading import Event
 
 import boto3
 
-from app.application.services.async_schedule_service import mark_completed, mark_failed, mark_running
-from app.application.use_cases.generate_schedule import GenerateScheduleUseCase
-from app.config import get_settings
-from app.domain.schemas import ScheduleRunRequestDTO
+from .application.services.async_schedule_service import mark_completed, mark_failed, mark_running
+from .application.use_cases.generate_schedule import GenerateScheduleUseCase
+from .config import get_settings
+from .domain.schemas import ScheduleRunRequestDTO
 
 
 QUEUE_URL_ENV = "SCHEDULE_QUEUE_URL"

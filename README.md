@@ -1,35 +1,41 @@
 # NSGA2IS-SLS
 
-Hệ thống tối ưu lịch trực bác sĩ bằng NSGA-II cải tiến. API FastAPI trên Lambda chỉ nhận request và đẩy vào SQS; EC2 worker long-poll queue, chạy thuật toán và ghi kết quả lên S3.
+Hệ thống sinh lịch trực bác sĩ bằng NSGA-II cải tiến. API FastAPI nhận request, lưu trạng thái job vào DynamoDB, đẩy payload vào SQS, rồi trả `request_id` ngay. Worker EC2 long-poll SQS, chạy tối ưu, ghi kết quả lên S3 và cập nhật tiến độ job.
 
-## Tổng Quan
+## Tóm Tắt Nhanh
 
-- `POST /api/v1/schedules/run` tạo request, lưu trạng thái `PENDING` vào DynamoDB và đẩy message vào SQS, sau đó trả `request_id` ngay với `202 Accepted`.
-- EC2 worker đọc message, chạy NSGA-II, lưu kết quả vào S3 và cập nhật trạng thái job.
-- `GET /api/v1/schedules/progress/{request_id}` trả trạng thái hiện tại của job.
-- `GET /api/v1/schedules/jobs/{request_id}/schedule` và `/metrics` chỉ trả khi job đã `completed`.
-- `GET /health` trả trạng thái ứng dụng.
+- `POST /api/v1/schedules/run` tạo job bất đồng bộ và trả `202 Accepted`.
+- `GET /api/v1/schedules/progress/{request_id}` xem trạng thái job.
+- `GET /api/v1/schedules/jobs/{request_id}/schedule` lấy lịch đã hoàn tất.
+- `GET /api/v1/schedules/jobs/{request_id}/metrics` lấy metrics của lịch.
+- `GET /health` kiểm tra trạng thái ứng dụng.
 
-## Cấu Trúc Dự Án
+## Kiến Trúc Ngắn Gọn
+
+- FastAPI chạy trên AWS Lambda qua Mangum.
+- SQS dùng làm hàng đợi giữa API và worker.
+- EC2 worker long-poll SQS để chạy thuật toán nặng.
+- DynamoDB lưu `status`, `progress_percent`, `message`, `error` và key kết quả.
+- S3 lưu payload kết quả hoàn chỉnh của từng `request_id`.
+
+## Cấu Trúc Chính
 
 ```text
 NSGA2IS-SLS/
 ├── server/
 │   ├── app/
+│   │   ├── main.py
+│   │   ├── worker.py
 │   │   ├── api/
 │   │   ├── application/
-│   │   ├── domain/
-│   │   ├── config.py
-│   │   ├── main.py
-│   │   └── worker.py
+│   │   └── domain/
 │   └── nsga2_improved/
-├── tools/
-├── artifacts/
+├── deploy/
 ├── API.md
-├── README.md
+├── ARCHITECTURE.md
 ├── serverless.yml
-├── package.json
-└── requirements.txt
+├── requirements.txt
+└── package.json
 ```
 
 ## Yêu Cầu
@@ -54,7 +60,7 @@ npm install
 
 ## Cấu Hình Môi Trường
 
-Tạo file `.env` ở thư mục gốc khi chạy local. Các biến `APP_*` được đọc từ `.env`:
+Tạo file `.env` ở thư mục gốc khi chạy local. Các biến `APP_*` được đọc bởi `server/app/config.py`:
 
 ```bash
 APP_ENV=development
@@ -67,7 +73,7 @@ APP_RANDOM_SEED=
 APP_CORS_ALLOW_ORIGINS=http://localhost:3000
 ```
 
-Các biến runtime AWS cần cho luồng submit job:
+Luồng async trên AWS cần các biến runtime sau:
 
 ```bash
 QUEUE_URL=
@@ -75,13 +81,16 @@ TABLE_NAME=
 BUCKET_NAME=
 ```
 
-`POST /api/v1/schedules/run` phụ thuộc vào ba biến này. Nếu thiếu một trong số đó hoặc AWS không truy cập được, API sẽ trả `503 Service Unavailable` thay vì `500 Internal Server Error`.
+Trong `serverless.yml`, các biến tương đương `SCHEDULE_QUEUE_URL`, `SCHEDULE_TABLE_NAME`, `SCHEDULE_RESULTS_BUCKET` cũng được gán sẵn để tương thích với worker và script cũ.
 
-`APP_PROGRESS_UPDATE_INTERVAL` kiểm soát tần suất worker ghi tiến độ xuống DynamoDB. Ví dụ `50` nghĩa là chỉ cập nhật ở mỗi 50 thế hệ, thay vì ghi ở mọi thế hệ, để giảm WCU và tránh throttling.
+`APP_PROGRESS_UPDATE_INTERVAL` điều khiển tần suất worker ghi tiến độ xuống DynamoDB. Ví dụ `50` nghĩa là chỉ cập nhật theo chu kỳ thế hệ, thay vì ghi ở mọi vòng lặp.
+
+Khi chạy local, nhớ thực hiện từ bên trong thư mục `NSGA2IS-SLS/` vì code application nằm dưới package đó.
 
 ## Chạy Local
 
 ```bash
+cd NSGA2IS-SLS
 uvicorn server.app.main:app --reload
 ```
 
@@ -103,42 +112,24 @@ Xem thông tin stack:
 serverless info --stage dev
 ```
 
-## Deploy EC2 API
+Base path hiện tại trên AWS là `/dev`, nên URL thực tế sẽ bao gồm tiền tố này khi đi qua API Gateway.
 
-Nếu bạn muốn chạy FastAPI trên EC2 thay vì Lambda, dùng bộ cấu hình trong `deploy/`:
+## Deploy EC2 Worker/API
 
-- `ec2_api_setup.sh`: script dựng máy, cài Python/nginx, clone source, tạo virtualenv, tạo systemd unit và cấu hình nginx reverse proxy
-- `deploy/user-data/ec2-api-user-data.sh`: user-data bootstrap để EC2 tự chạy `ec2_api_setup.sh` khi launch
-- `deploy/user-data/launch-template-user-data.sh`: mẫu user-data hoàn chỉnh để dán thẳng vào Launch Template trong AWS Console
+Bộ file trong `deploy/` và các script gốc ở thư mục root dùng để dựng EC2 chạy API public qua nginx hoặc dựng worker riêng:
+
+- `ec2_api_setup.sh`: dựng máy, cài Python/nginx, clone source, tạo virtualenv, tạo systemd unit và cấu hình reverse proxy
+- `deploy/user-data/ec2-api-user-data.sh`: user-data để EC2 tự chạy setup khi launch
+- `deploy/user-data/launch-template-user-data.sh`: mẫu user-data cho Launch Template
 - `deploy/systemd/nsga2is-sls-api.service`: mẫu systemd unit cho FastAPI
-- `deploy/nginx/nsga2is-sls-api.conf`: mẫu reverse proxy nginx về `127.0.0.1:8000`
+- `deploy/nginx/nsga2is-sls-api.conf`: mẫu nginx reverse proxy về `127.0.0.1:8000`
 
-Flow mặc định của script:
+Worker EC2 dùng entrypoint `python -m server.app.worker` và cùng layout package với API, nên `PYTHONPATH` phải trỏ vào `NSGA2IS-SLS/`.
 
-1. Lấy `QUEUE_URL`, `TABLE_NAME`, `BUCKET_NAME` từ CloudFormation stack
-2. Clone repo vào `/opt/nsga2is-sls`
-3. Tạo virtualenv tại `/opt/nsga2is-sls/NSGA2IS-SLS/.venv`
-4. Chạy `uvicorn server.app.main:app --host 127.0.0.1 --port 8000`
-5. Nginx nhận request public và proxy vào Uvicorn
-
-Để dùng script, điền giá trị thật cho `STACK_NAME`, `GIT_REPO_URL`, `AWS_REGION`, `SERVER_NAME` rồi chạy với quyền root trên Ubuntu.
-Nếu chưa có domain, có thể để `SERVER_NAME=_` trong nginx config.
-
-Nếu bạn launch instance bằng Launch Template hoặc Auto Scaling, có thể gắn luôn user-data script trên để EC2 tự bootstrap lúc khởi động.
-
-Nếu muốn dán trực tiếp vào AWS Console, mở [deploy/user-data/launch-template-user-data.sh](deploy/user-data/launch-template-user-data.sh) và thay các biến ở đầu file: `STACK_NAME`, `GIT_REPO_URL`, `AWS_REGION`, `SERVER_NAME`.
-
-## Endpoint Reference
-
-| Method | Endpoint | Mục đích |
-|---|---|---|
-| `POST` | `/api/v1/schedules/run` | Tạo job sinh lịch |
-| `GET` | `/api/v1/schedules/progress/{request_id}` | Xem trạng thái job |
-| `GET` | `/api/v1/schedules/jobs/{request_id}/schedule` | Lấy lịch hoàn tất |
-| `GET` | `/api/v1/schedules/jobs/{request_id}/metrics` | Lấy metrics thuật toán |
-| `GET` | `/health` | Health check |
+Nếu chưa có domain, có thể đặt `SERVER_NAME=_` trong cấu hình nginx.
 
 ## Tài Liệu Liên Quan
 
 - [API.md](API.md)
+- [ARCHITECTURE.md](ARCHITECTURE.md)
 - [serverless.yml](serverless.yml)

@@ -6,9 +6,9 @@ from __future__ import annotations
 
 from typing import Callable
 
-from app.config import AppSettings, get_settings
-from app.domain.nsga_scheduler import NsgaDutySchedulerService
-from app.domain.schemas import (
+from ...config import AppSettings, get_settings
+from ...domain.nsga_scheduler import NsgaDutySchedulerService
+from ...domain.schemas import (
     ScheduleGenerationEnvelopeDTO,
     ScheduleGenerationRequestDTO,
     ScheduleRunRequestDTO,

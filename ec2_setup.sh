@@ -151,8 +151,8 @@ User=${SERVICE_USER}
 Group=${SERVICE_USER}
 WorkingDirectory=${APP_DIR}
 EnvironmentFile=${ENV_FILE}
-Environment=PYTHONPATH=${APP_DIR}/NSGA2IS-SLS/server
-ExecStart=${APP_DIR}/.venv/bin/python -m app.worker
+Environment=PYTHONPATH=${APP_DIR}/NSGA2IS-SLS
+ExecStart=${APP_DIR}/.venv/bin/python -m server.app.worker
 Restart=always
 RestartSec=5
 KillSignal=SIGTERM

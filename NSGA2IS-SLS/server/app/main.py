@@ -12,8 +12,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from mangum import Mangum
 
-from app.api.router import api_router
-from app.config import get_settings
+from .api.router import api_router
+from .config import get_settings
 
 logger = logging.getLogger("uvicorn.error")
 

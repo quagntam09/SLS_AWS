@@ -1,21 +1,23 @@
 # API Reference
 
-Tài liệu tham chiếu cho luồng async trên AWS.
+Tài liệu tham chiếu cho API lập lịch ca trực. Luồng thực tế là: API nhận request và ghi job vào DynamoDB/SQS, worker EC2 chạy NSGA-II, sau đó API đọc kết quả từ DynamoDB/S3.
 
-## 1. Base URL
+## Base URL
 
 - Local: `http://127.0.0.1:8000`
-- AWS: URL từ `serverless deploy` hoặc `serverless info`
+- Local docs: `http://127.0.0.1:8000/docs`
+- AWS: URL từ `serverless info --stage <stage>`
+- AWS current config: base path `/dev`
 
-Luồng production trên AWS:
+## Authentication
 
-1. `POST /api/v1/schedules/run` ghi request vào DynamoDB và đẩy message vào SQS.
-2. EC2 worker đọc message, chạy NSGA-II, rồi lưu kết quả vào S3.
-3. API `progress`, `schedule`, `metrics` đọc lại dữ liệu từ DynamoDB/S3.
+Không có lớp auth trong code hiện tại.
 
-## 2. POST /api/v1/schedules/run
+## 1. POST /api/v1/schedules/run
 
 Tạo job sinh lịch mới.
+
+Ví dụ dưới đây là payload rút gọn để minh họa cấu trúc. Thực tế `doctors` phải có ít nhất 12 phần tử và mỗi bác sĩ phải hợp lệ theo schema.
 
 ### Request body
 
@@ -31,12 +33,12 @@ Tạo job sinh lịch mới.
   "doctors": [
     {
       "id": "DOC001",
-      "name": "Trần Văn A",
+      "name": "Tran Van A",
       "experiences": 5,
-      "department_id": "DEPT001",
+      "department_id": "D1",
       "specialization": "General",
-      "days_off": ["2026-03-26"],
-      "preferred_extra_days": ["2026-03-27"],
+      "days_off": ["2026-03-28"],
+      "preferred_extra_days": ["2026-03-29"],
       "has_valid_license": true,
       "is_intern": false
     }
@@ -44,19 +46,22 @@ Tạo job sinh lịch mới.
 }
 ```
 
-### Validation
+### Validation chính
 
 - `doctors` phải có ít nhất 12 phần tử.
 - `doctor.id` phải unique.
-- `doctor.experiences` là số thực, không ép về int.
-- `days_off` không được giao với `preferred_extra_days`.
-- `max_days_off_per_doctor` áp dụng cho ngày nghỉ trong kỳ.
+- `doctor.experiences` là số thực (`float`), không ép về `int`.
+- `days_off` không được trùng `preferred_extra_days`.
+- `max_days_off_per_doctor` áp dụng cho số ngày nghỉ trong kỳ.
+- `rooms_per_shift` nằm trong khoảng `1..10`.
+- `doctors_per_room` nằm trong khoảng `1..15`.
+- `shifts_per_day` hiện chỉ nhận `1` hoặc `2`.
 
-### Response
+### Response 202
 
 ```json
 {
-  "request_id": "550e8400-e29b-41d4-a716-446655440000",
+  "request_id": "req_550e8400e29b",
   "status": "PENDING",
   "progress_percent": 0,
   "message": "Schedule generation request accepted"
@@ -66,51 +71,52 @@ Tạo job sinh lịch mới.
 ### Status codes
 
 - `202`: request hợp lệ và đã được xếp hàng.
-- `400`: lỗi validate nghiệp vụ.
-- `422`: lỗi validate schema.
+- `422`: lỗi validate schema của FastAPI/Pydantic.
 - `503`: thiếu cấu hình AWS hoặc không truy cập được DynamoDB/SQS/S3.
+- `500`: lỗi không mong đợi trong quá trình tạo request.
 
-## 3. GET /api/v1/schedules/progress/{request_id}
+## 2. GET /api/v1/schedules/progress/{request_id}
 
-Lấy trạng thái job hiện tại.
+Lấy trạng thái job hiện tại, không trả full result.
 
-### Response
+### Response 200
 
 ```json
 {
-  "request_id": "550e8400-e29b-41d4-a716-446655440000",
+  "request_id": "req_550e8400e29b",
   "status": "RUNNING",
   "progress_percent": 65,
-  "message": "Đang tối ưu bằng NSGA-II cải tiến (thế hệ 260/400)",
+  "message": "Schedule generation is running (generation 260/400)",
   "error": null
 }
 ```
 
-### Status codes
-
-- `200`: tìm thấy request_id.
-- `404`: không có request_id.
-
 ### Ý nghĩa status
 
-- `PENDING`: đã vào DynamoDB/SQS.
+- `PENDING`: đã ghi vào DynamoDB và đẩy sang queue.
 - `RUNNING`: worker đang xử lý.
-- `COMPLETED`: đã có kết quả.
+- `COMPLETED`: đã có kết quả trong S3.
 - `FAILED`: job lỗi, xem `error`.
 
-### Progress update batching
+### Status codes
 
-Worker không ghi progress xuống DynamoDB ở mọi thế hệ. Tần suất ghi được điều khiển bởi `APP_PROGRESS_UPDATE_INTERVAL` (mặc định `50`), nghĩa là chỉ cập nhật khi `generation % APP_PROGRESS_UPDATE_INTERVAL == 0` và luôn ghi ở thế hệ cuối cùng để đạt `100%`.
+- `200`: tìm thấy `request_id`.
+- `404`: không có `request_id`.
 
-## 4. GET /api/v1/schedules/jobs/{request_id}/schedule
+### Lưu ý
+
+Worker không ghi progress ở mọi thế hệ. Tần suất ghi được điều khiển bởi `APP_PROGRESS_UPDATE_INTERVAL`; ở thế hệ cuối cùng worker luôn ghi `100%`.
+Nếu job thất bại, API có thể trả `409` ở các endpoint lấy lịch hoặc metrics để báo rằng kết quả không còn khả dụng.
+
+## 3. GET /api/v1/schedules/jobs/{request_id}/schedule
 
 Lấy lịch đã hoàn tất và các phương án Pareto.
 
-### Response shape
+### Response 200
 
 ```json
 {
-  "request_id": "550e8400-e29b-41d4-a716-446655440000",
+  "request_id": "req_550e8400e29b",
   "selected_option_id": "OPT-01",
   "selected": {
     "start_date": "2026-03-25",
@@ -126,19 +132,23 @@ Lấy lịch đã hoàn tất và các phương án Pareto.
 
 ### Status codes
 
-- `200`: job completed.
-- `409`: job đang chạy, queued, hoặc failed.
-- `404`: không có request_id.
+- `200`: job đã `COMPLETED`.
+- `404`: không có `request_id`.
+- `409`: job chưa sẵn sàng hoặc job đã `FAILED`.
 
-## 5. GET /api/v1/schedules/jobs/{request_id}/metrics
+### Ghi chú
+
+- Trường `metrics` trong ví dụ chỉ minh họa cấu trúc tổng quát; response thực tế có đầy đủ các trường của DTO.
+
+## 4. GET /api/v1/schedules/jobs/{request_id}/metrics
 
 Lấy metrics thuật toán và metrics của từng phương án Pareto.
 
-### Response shape
+### Response 200
 
 ```json
 {
-  "request_id": "550e8400-e29b-41d4-a716-446655440000",
+  "request_id": "req_550e8400e29b",
   "algorithm_run_metrics": {
     "elapsed_seconds": 12.45,
     "n_generations": 260,
@@ -164,15 +174,13 @@ Lấy metrics thuật toán và metrics của từng phương án Pareto.
 
 ### Status codes
 
-- `200`: job completed.
-- `409`: job đang chạy, queued, hoặc failed.
-- `404`: không có request_id.
+- `200`: job đã `COMPLETED`.
+- `404`: không có `request_id`.
+- `409`: job chưa sẵn sàng hoặc job đã `FAILED`.
 
-## 6. Health Check
+## 5. GET /health
 
-### GET /health
-
-Response:
+### Response 200
 
 ```json
 {
@@ -180,42 +188,18 @@ Response:
 }
 ```
 
-## 7. AWS Verification Checklist
+## 6. Ghi chú vận hành
 
-Để xác nhận thuật toán đã chạy trên AWS, kiểm tra theo thứ tự sau:
+- `progress` trả DTO trạng thái, không trả full result.
+- `schedule` và `metrics` chỉ trả khi job đã `COMPLETED`.
+- Kết quả hoàn chỉnh được lưu dưới key `results/{request_id}.json` trong S3.
+- `APP_CORS_ALLOW_ORIGINS` điều khiển CORS của FastAPI.
+
+## 7. Checklist kiểm tra AWS
 
 1. `POST /api/v1/schedules/run` trả `request_id`.
 2. `GET /api/v1/schedules/progress/{request_id}` chuyển sang `COMPLETED`.
-3. `GET /api/v1/schedules/jobs/{request_id}/schedule` trả 200.
-4. `GET /api/v1/schedules/jobs/{request_id}/metrics` trả 200.
+3. `GET /api/v1/schedules/jobs/{request_id}/schedule` trả `200`.
+4. `GET /api/v1/schedules/jobs/{request_id}/metrics` trả `200`.
 5. DynamoDB item có `status=COMPLETED` và `result_s3_key`.
 6. S3 có object `results/{request_id}.json`.
-
-### AWS CLI ví dụ
-
-```bash
-aws dynamodb get-item \
-  --table-name NSGA2IS-SLS-dev-requests \
-  --key '{"request_id": {"S": "paste-request-id-here"}}'
-
-aws s3 cp \
-  "s3://nsga2is-sls-dev-results-<account-id>/results/paste-request-id-here.json" \
-  -
-```
-
-## 8. Deploy nhanh
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-npm install -g serverless
-serverless deploy --stage dev
-```
-
-## 9. Notes
-
-- `progress` endpoint trả DTO trạng thái, không trả full result.
-- `schedule` và `metrics` chỉ trả khi job đã `completed`.
-- CORS lấy từ `APP_CORS_ALLOW_ORIGINS`.
-- `APP_PROGRESS_UPDATE_INTERVAL` kiểm soát tần suất worker ghi progress xuống DynamoDB để giảm WCU và tránh throttling.

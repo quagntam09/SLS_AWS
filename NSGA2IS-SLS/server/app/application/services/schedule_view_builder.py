@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.domain.schemas import (
+from ...domain.schemas import (
     ParetoScheduleAssignmentsDTO,
     ParetoScheduleMetricsItemDTO,
     ScheduleGenerationEnvelopeDTO,

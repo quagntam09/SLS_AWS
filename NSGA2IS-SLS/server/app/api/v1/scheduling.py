@@ -7,15 +7,15 @@ import logging
 from fastapi import APIRouter, HTTPException, status as http_status
 from botocore.exceptions import BotoCoreError, ClientError
 
-from app.application.services.async_schedule_service import (
+from ...application.services.async_schedule_service import (
     create_schedule_request,
     get_schedule_progress as load_schedule_progress,
 )
-from app.application.services.schedule_view_builder import (
+from ...application.services.schedule_view_builder import (
     build_metrics_response,
     build_schedule_response,
 )
-from app.domain.schemas import (
+from ...domain.schemas import (
     ScheduleGenerationEnvelopeDTO,
     ScheduleJobMetricsResponseDTO,
     ScheduleJobScheduleResponseDTO,

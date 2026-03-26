@@ -41,7 +41,7 @@ provider:
                   - Ref: ScheduleResultsBucket
                   - "/*"
   environment:
-    PYTHONPATH: "/var/task:/var/task/NSGA2IS-SLS/server"
+    PYTHONPATH: "/var/task:/var/task/NSGA2IS-SLS"
     APP_ENV: ${env:APP_ENV, 'production'}
     APP_OPTIMIZER_POPULATION_SIZE: ${env:APP_OPTIMIZER_POPULATION_SIZE, 500}
     APP_OPTIMIZER_GENERATIONS: ${env:APP_OPTIMIZER_GENERATIONS, 500}
@@ -93,7 +93,6 @@ package:
     - '!NSGA2IS-SLS/**/*.sh'
     - '!**/__pycache__/**'
     - '!**/*.pyc'
-    - '!.serverless/**'
     - '!.env'
     - '!server/src/**'
 

@@ -8,8 +8,8 @@ from threading import Lock
 from typing import Dict, Literal, Optional, Tuple
 from uuid import uuid4
 
-from app.application.use_cases.generate_schedule import GenerateScheduleUseCase
-from app.domain.schemas import (
+from ..use_cases.generate_schedule import GenerateScheduleUseCase
+from ...domain.schemas import (
     ScheduleGenerationEnvelopeDTO,
     ScheduleJobStatusDTO,
     ScheduleRequestAcceptedDTO,

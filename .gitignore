@@ -47,7 +47,6 @@ env/
 node_modules/
 npm-debug.log
 yarn-error.log
-package-lock.json
 
 # Serverless Framework
 .serverless/
@@ -84,6 +83,8 @@ dmypy.json
 .env*
 !.env.example
 .history/
+tools/
+artifacts/
 
 # NSGA2IS-SLS generated experiment outputs
 NSGA2IS-SLS/artifacts/aws-experiments/**
@@ -93,5 +94,3 @@ NSGA2IS-SLS/aws-experiment-*.json
 # NSGA2IS-SLS personal-only tools
 NSGA2IS-SLS/tools
 NSGA2IS-SLS/artifacts
-
-package.json/
