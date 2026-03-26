@@ -83,11 +83,13 @@ def _process_message(message: dict[str, object], progress_update_interval: int) 
         schedule_request = ScheduleRunRequestDTO.model_validate(payload)
         mark_running(request_id, progress_percent=10, message="Schedule generation is running")
 
+        print(f"\nĐÃ BẮT ĐƯỢC JOB! Đang xử lý Request ID: {request_id}")
         result = GenerateScheduleUseCase().execute(
             schedule_request,
             progress_callback=_build_progress_callback(request_id, progress_update_interval),
         )
         mark_completed(request_id, result.model_dump(mode="json"))
+        print(f"ử lý thành công Request ID: {request_id}")
     except Exception:
         if request_id:
             mark_failed(request_id, traceback.format_exc())
