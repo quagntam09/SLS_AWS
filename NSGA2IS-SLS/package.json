@@ -1,10 +1,9 @@
 {
   "name": "NSGA2IS-SLS",
   "version": "1.0.0",
-  "description": "Example of a Python Flask API service with traditional Serverless Framework",
+  "description": "FastAPI schedule optimization service deployed with Serverless Framework and Mangum",
   "author": "",
   "devDependencies": {
-    "serverless-python-requirements": "^6.1.2",
-    "serverless-wsgi": "^3.1.0"
+    "serverless-python-requirements": "^6.1.2"
   }
 }

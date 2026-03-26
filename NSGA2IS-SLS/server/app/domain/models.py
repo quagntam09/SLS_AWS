@@ -3,7 +3,6 @@ Data models for schedule generation API.
 """
 from dataclasses import dataclass, field, asdict
 from typing import List, Optional, Dict, Any
-from datetime import datetime
 from enum import Enum
 
 
@@ -18,9 +17,12 @@ class RequestStatus(str, Enum):
 class Doctor:
     id: str
     name: str
-    experiences: int
+    experiences: float
     department_id: str
     specialization: str
+    has_valid_license: bool = True
+    is_intern: bool = False
+    certifications: List[str] = field(default_factory=list)
     days_off: List[str] = field(default_factory=list)
     preferred_extra_days: List[str] = field(default_factory=list)
 
@@ -49,13 +51,32 @@ class ScheduleMetrics:
 
 
 @dataclass
-class ShiftAssignment:
-    date: str
-    shift: str
+class RoomAssignment:
+    room_id: str
     doctor_ids: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
+
+
+@dataclass
+class ShiftAssignment:
+    date: str
+    shift: str
+    room_assignments: List[RoomAssignment] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "date": self.date,
+            "shift": self.shift,
+            # Backward-compatible flattened list.
+            "doctor_ids": [
+                doc_id
+                for room in self.room_assignments
+                for doc_id in room.doctor_ids
+            ],
+            "room_assignments": [room.to_dict() for room in self.room_assignments],
+        }
 
 
 @dataclass
@@ -128,8 +149,12 @@ class ScheduleRequest:
     required_doctors_per_shift: int
     shifts_per_day: int
     doctors: List[Doctor]
+    rooms_per_shift: Optional[int] = None
+    doctors_per_room: Optional[int] = None
     holiday_dates: List[str] = field(default_factory=list)
     pareto_options_limit: int = 6
+    n_generations: int = 100
+    population_size: Optional[int] = None
 
 
 @dataclass

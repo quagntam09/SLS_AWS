@@ -10,8 +10,6 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
 parts/
 sdist/
 var/
@@ -63,8 +61,6 @@ credentials
 config
 
 # OS
-.DS_Store
-Thumbs.db
 *.log
 
 # Testing & Coverage
@@ -88,3 +84,12 @@ dmypy.json
 .env*
 !.env.example
 .history/
+
+# NSGA2IS-SLS generated experiment outputs
+NSGA2IS-SLS/artifacts/aws-experiments/**
+!NSGA2IS-SLS/artifacts/aws-experiments/
+NSGA2IS-SLS/aws-experiment-*.json
+
+# NSGA2IS-SLS personal-only tools
+NSGA2IS-SLS/tools
+NSGA2IS-SLS/artifacts

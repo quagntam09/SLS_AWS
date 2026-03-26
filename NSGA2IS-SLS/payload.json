@@ -1,0 +1,146 @@
+{
+  "start_date": "2026-03-25",
+  "num_days": 7,
+  "max_weekly_hours_per_doctor": 48,
+  "max_days_off_per_doctor": 5,
+  "rooms_per_shift": 2,
+  "doctors_per_room": 2,
+  "shifts_per_day": 2,
+  "doctors": [
+    {
+      "id": "DOC001",
+      "name": "Tran Van A",
+      "experiences": 5,
+      "department_id": "D1",
+      "specialization": "General",
+      "days_off": ["2026-03-28"],
+      "preferred_extra_days": ["2026-03-29"],
+      "has_valid_license": true,
+      "is_intern": false
+    },
+    {
+      "id": "DOC002",
+      "name": "Le Thi B",
+      "experiences": 4,
+      "department_id": "D1",
+      "specialization": "General",
+      "days_off": [],
+      "preferred_extra_days": [],
+      "has_valid_license": true,
+      "is_intern": false
+    },
+    {
+      "id": "DOC003",
+      "name": "Pham Van C",
+      "experiences": 3.5,
+      "department_id": "D1",
+      "specialization": "General",
+      "days_off": ["2026-03-30"],
+      "preferred_extra_days": ["2026-03-31"],
+      "has_valid_license": true,
+      "is_intern": false
+    },
+    {
+      "id": "DOC004",
+      "name": "Nguyen Thi D",
+      "experiences": 2.5,
+      "department_id": "D1",
+      "specialization": "General",
+      "days_off": [],
+      "preferred_extra_days": [],
+      "has_valid_license": true,
+      "is_intern": false
+    },
+    {
+      "id": "DOC005",
+      "name": "Hoang Van E",
+      "experiences": 6,
+      "department_id": "D1",
+      "specialization": "General",
+      "days_off": ["2026-04-01"],
+      "preferred_extra_days": [],
+      "has_valid_license": true,
+      "is_intern": false
+    },
+    {
+      "id": "DOC006",
+      "name": "Tran Thi F",
+      "experiences": 5.5,
+      "department_id": "D1",
+      "specialization": "General",
+      "days_off": [],
+      "preferred_extra_days": ["2026-03-30"],
+      "has_valid_license": true,
+      "is_intern": false
+    },
+    {
+      "id": "DOC007",
+      "name": "Vo Van G",
+      "experiences": 1.5,
+      "department_id": "D1",
+      "specialization": "General",
+      "days_off": [],
+      "preferred_extra_days": [],
+      "has_valid_license": true,
+      "is_intern": true
+    },
+    {
+      "id": "DOC008",
+      "name": "Do Thi H",
+      "experiences": 2,
+      "department_id": "D1",
+      "specialization": "General",
+      "days_off": ["2026-03-27"],
+      "preferred_extra_days": ["2026-03-30"],
+      "has_valid_license": true,
+      "is_intern": false
+    },
+    {
+      "id": "DOC009",
+      "name": "Bui Van I",
+      "experiences": 4.5,
+      "department_id": "D1",
+      "specialization": "General",
+      "days_off": [],
+      "preferred_extra_days": [],
+      "has_valid_license": true,
+      "is_intern": false
+    },
+    {
+      "id": "DOC010",
+      "name": "Dang Thi K",
+      "experiences": 3,
+      "department_id": "D1",
+      "specialization": "General",
+      "days_off": [],
+      "preferred_extra_days": ["2026-04-02"],
+      "has_valid_license": true,
+      "is_intern": false
+    },
+    {
+      "id": "DOC011",
+      "name": "Ly Van L",
+      "experiences": 1,
+      "department_id": "D1",
+      "specialization": "General",
+      "days_off": ["2026-04-01"],
+      "preferred_extra_days": [],
+      "has_valid_license": true,
+      "is_intern": true
+    },
+    {
+      "id": "DOC012",
+      "name": "Mai Thi M",
+      "experiences": 7,
+      "department_id": "D1",
+      "specialization": "General",
+      "days_off": [],
+      "preferred_extra_days": ["2026-03-26"],
+      "has_valid_license": true,
+      "is_intern": false
+    }
+  ],
+  "holiday_dates": [],
+  "pareto_options_limit": 6,
+  "random_seed": 42
+}

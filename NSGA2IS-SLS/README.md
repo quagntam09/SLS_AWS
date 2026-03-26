@@ -1,216 +1,212 @@
-# NSGA2IS-SLS: Doctor Shift Schedule Optimizer
+# NSGA2IS-SLS
 
-**Hệ thống tối ưu hóa lịch trực bác sĩ trên AWS Serverless**
+Hệ thống tối ưu lịch trực bác sĩ bằng NSGA-II cải tiến. Dự án có 2 chế độ chạy chính:
 
----
+- Chạy local để phát triển, debug, và kiểm tra thuật toán.
+- Chạy async trên AWS với FastAPI, SQS, DynamoDB, và S3.
 
-## 🎯 Tổng Quan
+## Tổng Quan
 
-Ứng dụng sinh lịch trực bác sĩ tối ưu sử dụng **NSGA-II** trên **AWS Lambda**.
+- `POST /api/v1/schedules/run` tạo request và trả `request_id` ngay.
+- Worker Lambda xử lý job, chạy NSGA-II, rồi lưu kết quả vào S3.
+- `GET /api/v1/schedules/progress/{request_id}` dùng để poll trạng thái.
+- `GET /api/v1/schedules/jobs/{request_id}/schedule` và `/metrics` chỉ trả khi job đã hoàn tất.
 
-### Tính Năng
-- ✅ API Async - Gửi yêu cầu, nhận ID, tracking tiến độ
-- ✅ Sinh Lịch Tối Ưu - Tạo 6 giải pháp Pareto-optimal
-- ✅ Cân Bằng Công Việc - Công bằng giữa bác sĩ
-- ✅ Tuân Thủ Ràng Buộc - Ngày nghỉ, ngày lễ, giờ tối đa
+## Cấu Trúc Dự Án
 
-### Tech Stack
-- **Backend:** Flask 3.0.3
-- **Language:** Python 3.12
-- **Cloud:** AWS Lambda + API Gateway
-- **Deployment:** Serverless Framework
+```text
+NSGA2IS-SLS/
+├── server/
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── worker.py
+│   │   ├── config.py
+│   │   ├── api/
+│   │   ├── application/
+│   │   └── domain/
+│   └── nsga2_improved/
+├── artifacts/
+├── README.md
+├── API.md
+├── TOOLS_GUIDE.md
+├── PAYLOAD_SAMPLES.md
+├── TEST_CASES.md
+├── serverless.yml
+└── requirements.txt
+```
 
----
+## Yêu Cầu
 
-## 📦 Cài Đặt & Chạy Cục Bộ
+- Python 3.12
+- Node.js 18+ nếu deploy bằng Serverless Framework
+- AWS CLI đã cấu hình nếu chạy trên AWS
 
-### 1. Setup môi trường
+## Cài Đặt Local
 
 ```bash
-cd /home/quagntam/Developer/SLS_AWS/NSGA2IS-SLS
-
-# Create virtual environment
-python3 -m venv venv
-source venv/bin/activate
-
-# Install dependencies
+cd /path/to/NSGA2IS-SLS
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
+```
+
+Nếu bạn cần deploy AWS bằng Serverless Framework, cài thêm:
+
+```bash
 npm install
 ```
 
-### 2. Chạy Flask
+## Cấu Hình Môi Trường
 
-serverless wsgi serve
-# → API chạy trên http://localhost:8000
-```
-
-### 3. Test API
+Tạo file `.env` ở thư mục gốc nếu chạy local. Các giá trị dưới đây là khuyến nghị để dev:
 
 ```bash
-# Sinh lịch
-curl -X POST http://localhost:5000/api/v1/schedules/generate \
+APP_ENV=development
+APP_OPTIMIZER_POPULATION_SIZE=250
+APP_OPTIMIZER_GENERATIONS=400
+APP_PARETO_OPTIONS_LIMIT=6
+APP_RANDOMIZATION_STRENGTH=0.08
+APP_RANDOM_SEED=
+APP_CORS_ALLOW_ORIGINS=http://localhost:3000,https://your-frontend-domain.example
+```
+
+Lưu ý:
+
+- `APP_CORS_ALLOW_ORIGINS` nhận danh sách phân tách bằng dấu phẩy.
+- Submit job qua API cần thêm các biến AWS runtime: `SCHEDULE_QUEUE_URL`, `SCHEDULE_TABLE_NAME`, `SCHEDULE_RESULTS_BUCKET`.
+- Trong `serverless.yml`, các biến này được inject tự động khi deploy lên AWS.
+
+## Chạy API Local
+
+```bash
+uvicorn server.app.main:app --reload
+```
+
+Sau khi chạy:
+
+- API: `http://127.0.0.1:8000`
+- Swagger UI: `http://127.0.0.1:8000/docs`
+- Redoc: `http://127.0.0.1:8000/redoc`
+
+Health check:
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+## Deploy AWS
+
+### 1) Cài plugin Serverless
+
+```bash
+npm install
+```
+
+### 2) Deploy
+
+```bash
+serverless deploy --stage dev
+```
+
+Nếu bạn dùng `npx`, có thể chạy:
+
+```bash
+npx serverless deploy --stage dev
+```
+
+### 3) Xem URL API
+
+```bash
+serverless info --stage dev
+```
+
+### Tài Nguyên AWS Tạo Ra
+
+- `ScheduleJobsQueue`: SQS queue nhận job.
+- `ScheduleRequestsTable`: DynamoDB lưu trạng thái job.
+- `ScheduleResultsBucket`: S3 lưu kết quả JSON.
+
+## Cách Gọi API Trên AWS
+
+### 1) Gửi request
+
+```bash
+AWS_BASE_URL="https://your-api-id.execute-api.region.amazonaws.com"
+
+curl -X POST "${AWS_BASE_URL}/api/v1/schedules/run" \
   -H "Content-Type: application/json" \
-  -d '{
-    "start_date": "2026-03-22",
-    "num_days": 7,
-    "required_doctors_per_shift": 5,
-    "shifts_per_day": 2,
-    "doctors": [...],
-    "pareto_options_limit": 6
-  }'
-
-# Kiểm tra tiến độ
-curl http://localhost:5000/api/v1/schedules/progress/{request_id}
+  -d @payload.json
 ```
 
----
+Response mẫu:
 
-## 🚀 Deploy AWS
+```json
+{
+  "request_id": "req_123456789abc",
+  "status": "queued",
+  "progress_percent": 0,
+  "message": "Schedule generation request submitted"
+}
+```
+
+### 2) Poll tiến độ
 
 ```bash
-# Login
-serverless login
-
-# Deploy
-serverless deploy
-
-# View logs
-serverless logs -f api -t
-
-# Get API URL from output and test
-curl -X POST https://your-api.execute-api.region.amazonaws.com/dev/api/v1/schedules/generate ...
+REQUEST_ID="paste-request-id-here"
+curl "${AWS_BASE_URL}/api/v1/schedules/progress/${REQUEST_ID}"
 ```
 
----
+Trạng thái hợp lệ:
 
-## 📚 Documentation
+- `queued`
+- `running`
+- `completed`
+- `failed`
 
-- **[API.md](API.md)** - Chi tiết API endpoints & examples
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Kiến trúc hệ thống & data flow
+### 3) Lấy lịch và metrics
 
----
-
-## 📁 Project Structure
-
-```
-NSGA2IS-SLS/
-├── app.py                      # Flask endpoints (136 lines)
-├── models.py                   # 11 dataclasses (153 lines)
-├── schedule_service.py         # Schedule generation logic (269 lines)
-├── requirements.txt            # Flask, numpy
-├── serverless.yml              # AWS config
-├── nsga2_improved/             # NSGA-II algorithm (ready)
-├── README.md                   # This file
-├── API.md                      # API reference
+```bash
+curl "${AWS_BASE_URL}/api/v1/schedules/jobs/${REQUEST_ID}/schedule"
+curl "${AWS_BASE_URL}/api/v1/schedules/jobs/${REQUEST_ID}/metrics"
 ```
 
----
+## Endpoint Reference
 
-## 🔌 Quick API Reference
+| Method | Endpoint | Mục đích |
+|---|---|---|
+| `POST` | `/api/v1/schedules/run` | Tạo job sinh lịch |
+| `GET` | `/api/v1/schedules/progress/{request_id}` | Xem trạng thái job |
+| `GET` | `/api/v1/schedules/jobs/{request_id}/schedule` | Lấy lịch hoàn tất |
+| `GET` | `/api/v1/schedules/jobs/{request_id}/metrics` | Lấy metrics thuật toán |
+| `GET` | `/health` | Health check |
 
-### POST `/api/v1/schedules/generate` - Generate Schedule
+## Quy Trình Khuyến Nghị Khi Phát Triển
 
-**Input:** ScheduleRequest (JSON)
-```json
-{
-  "start_date": "2026-03-22",
-  "num_days": 7,
-  "required_doctors_per_shift": 5,
-  "shifts_per_day": 2,
-  "doctors": [
-    {
-      "id": "DOC001",
-      "name": "Trần Văn A",
-      "experiences": 5,
-      "department_id": "DEPT001",
-      "specialization": "Ngoại khoa",
-      "days_off": ["2026-03-22"],
-      "preferred_extra_days": ["2026-03-25"]
-    }
-  ],
-  "holiday_dates": ["2026-03-22"],
-  "pareto_options_limit": 6
-}
-```
+1. Tạo và kích hoạt virtual environment.
+2. Cài dependencies bằng `pip install -r requirements.txt`.
+3. Chuẩn bị payload JSON thủ công hoặc từ công cụ cá nhân bên ngoài repo.
+4. Chạy `uvicorn server.app.main:app --reload` để kiểm tra API local.
+5. Khi cần test end-to-end, deploy AWS rồi gọi API bằng `curl` hoặc công cụ HTTP client cá nhân.
 
-**Output:** HTTP 202 Accepted
-```json
-{
-  "request_id": "req_abc123",
-  "status": "queued",
-  "progress_percent": 0.0,
-  "message": "Request submitted"
-}
-```
+## Lưu Ý Quan Trọng
 
-### GET `/api/v1/schedules/progress/{request_id}` - Check Progress
+- `doctors` phải có ít nhất 12 phần tử.
+- `doctor.experiences` là số thực, không ép về int.
+- `days_off` không được giao với `preferred_extra_days`.
+- `POST /api/v1/schedules/run` dùng luồng async trên AWS nên cần các resource SQS/DynamoDB/S3.
+- `worker.py` là entrypoint cho Lambda xử lý queue, không phải để gọi trực tiếp từ API local.
 
-**Response:** HTTP 202 (processing) → 200 (completed)
-```json
-{
-  "request_id": "req_abc123",
-  "status": "completed",
-  "progress_percent": 100.0,
-  "result": {
-    "selected_option_id": "opt_1_...",
-    "selected_schedule": { ... },
-    "pareto_options": [ ... ],
-    "algorithm_run_metrics": { ... }
-  }
-}
-```
+## Troubleshooting
 
-See [API.md](API.md) for complete reference.
+- Job kẹt ở `queued` hoặc `running`: kiểm tra worker Lambda, SQS, và quyền IAM.
+- `failed` do validate: kiểm tra payload, số lượng bác sĩ, và ràng buộc ngày nghỉ.
+- `schedule` hoặc `metrics` không trả về: kiểm tra `result_s3_key` trong DynamoDB và object trong S3.
+- API local trả lỗi thiếu env: kiểm tra `.env` và các biến AWS runtime cần cho submit job.
 
----
+## Tài Liệu Liên Quan
 
-## 🧵 How It Works
-
-```
-1. Client POST /generate
-        ↓
-2. Validate input, parse doctors
-        ↓
-3. submit_schedule_request()
-   ├─ Create request_id
-   ├─ Store in SCHEDULE_REQUESTS dict
-   ├─ Start background thread
-   └─ Return 202 + request_id
-        ↓
-4. Background thread: _process_schedule_request()
-   ├─ Update status QUEUED → RUNNING
-   ├─ ScheduleGenerator.generate()
-   ├─ Calculate metrics & workload
-   └─ Update status RUNNING → COMPLETED
-        ↓
-5. Client GET /progress/{id}
-   └─ Return ProgressResponse (status, result)
-```
-
-**Thread Safety:** `threading.Lock()` protects SCHEDULE_REQUESTS dict
-
----
-
-## 📊 Performance
-
-| Metric | Value |
-|--------|-------|
-| Response Time | 1-3 seconds |
-| Memory Usage | <100 MB |
-| Cold Start | 3-5 seconds |
-| Warm Start | <500 ms |
-
----
-
-## 📝 Deployment Notes
-
-- **In-memory storage:** Data lost on Lambda restart → Upgrade to DynamoDB for production
-- **Thread pool:** Single background thread → Use SQS/Lambda for heavy load
-- **NSGA-II:** Ready in `nsga2_improved/` module → Integrate for real optimization
-
----
-
-## 📞 Support
-
-- Questions about setup? See installation steps above
-- Need API details? See [API.md](API.md)
+- [API.md](API.md)
+- [TOOLS_GUIDE.md](TOOLS_GUIDE.md)
+- [PAYLOAD_SAMPLES.md](PAYLOAD_SAMPLES.md)
+- [TEST_CASES.md](TEST_CASES.md)
+- [serverless.yml](serverless.yml)

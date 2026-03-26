@@ -1,384 +1,215 @@
-# API Reference - NSGA2IS-SLS
+# API Reference
 
----
+Tài liệu tham chiếu cho luồng async trên AWS.
 
-## POST `/api/v1/schedules/generate`
+## 1. Base URL
 
-Gửi yêu cầu sinh lịch trực và nhận request_id để tracking tiến độ.
+- Local: `http://127.0.0.1:8000`
+- AWS: URL từ `serverless deploy` hoặc `serverless info`
 
-### Request
+Luồng production trên AWS:
 
-**Method:** POST  
-**Content-Type:** application/json  
-**HTTP Status:** 202 Accepted
+1. `POST /api/v1/schedules/run` ghi request vào DynamoDB và đẩy message vào SQS.
+2. Worker Lambda đọc message, chạy NSGA-II, rồi lưu kết quả vào S3.
+3. API `progress`, `schedule`, `metrics` đọc lại dữ liệu từ DynamoDB/S3.
 
-#### Headers
-```
-Content-Type: application/json
-```
+## 2. POST /api/v1/schedules/run
 
-#### Body
+Tạo job sinh lịch mới.
+
+### Request body
 
 ```json
 {
-  "start_date": "2026-03-22",
+  "start_date": "2026-03-25",
   "num_days": 7,
   "max_weekly_hours_per_doctor": 48,
   "max_days_off_per_doctor": 5,
-  "required_doctors_per_shift": 5,
+  "rooms_per_shift": 2,
+  "doctors_per_room": 2,
   "shifts_per_day": 2,
   "doctors": [
     {
-      "id": "string",
-      "name": "string",
-      "experiences": 0,
-      "department_id": "string",
-      "specialization": "string",
-      "days_off": ["2026-03-22"],
-      "preferred_extra_days": ["2026-03-22"]
+      "id": "DOC001",
+      "name": "Trần Văn A",
+      "experiences": 5,
+      "department_id": "DEPT001",
+      "specialization": "General",
+      "days_off": ["2026-03-26"],
+      "preferred_extra_days": ["2026-03-27"],
+      "has_valid_license": true,
+      "is_intern": false
     }
-  ],
-  "holiday_dates": ["2026-03-22"],
-  "pareto_options_limit": 6
+  ]
 }
 ```
 
-#### Field Descriptions
+### Validation
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `start_date` | string | Yes | Ngày bắt đầu xếp lịch (YYYY-MM-DD) |
-| `num_days` | integer | Yes | Số ngày xếp lịch |
-| `max_weekly_hours_per_doctor` | integer | No | Số giờ làm tối đa/tuần (default: 48) |
-| `max_days_off_per_doctor` | integer | No | Số ngày nghỉ tối đa (default: 5) |
-| `required_doctors_per_shift` | integer | Yes | Số bác sĩ cần mỗi ca trực |
-| `shifts_per_day` | integer | Yes | Số ca trực mỗi ngày |
-| `doctors` | array | Yes | Danh sách bác sĩ (tối thiểu 1) |
-| `holiday_dates` | array | No | Danh sách ngày lễ |
-| `pareto_options_limit` | integer | No | Số lịch tối ưu cần trả về (default: 6) |
-
-#### Doctor Object
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | string | ID duy nhất của bác sĩ |
-| `name` | string | Tên bác sĩ |
-| `experiences` | integer | Số năm kinh nghiệm |
-| `department_id` | string | ID phòng ban |
-| `specialization` | string | Chuyên ngành |
-| `days_off` | array | Danh sách ngày đã đăng ký nghỉ |
-| `preferred_extra_days` | array | Danh sách ngày muốn trực thêm |
+- `doctors` phải có ít nhất 12 phần tử.
+- `doctor.id` phải unique.
+- `doctor.experiences` là số thực, không ép về int.
+- `days_off` không được giao với `preferred_extra_days`.
+- `max_days_off_per_doctor` áp dụng cho ngày nghỉ trong kỳ.
 
 ### Response
 
-**HTTP 202 Accepted**
-
 ```json
 {
-  "request_id": "req_a1b2c3d4e5f6",
+  "request_id": "550e8400-e29b-41d4-a716-446655440000",
   "status": "queued",
-  "progress_percent": 0.0,
+  "progress_percent": 0,
   "message": "Schedule generation request submitted"
 }
 ```
 
-#### Response Fields
+### Status codes
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `request_id` | string | ID duy nhất để tracking tiến độ |
-| `status` | string | Trạng thái (queued, running, completed, failed) |
-| `progress_percent` | number | Phần trăm tiến độ (0-100) |
-| `message` | string | Thông báo mô tả |
+- `200`: request hợp lệ và đã được xếp hàng.
+- `400`: lỗi validate nghiệp vụ.
+- `422`: lỗi validate schema.
 
-### Errors
+## 3. GET /api/v1/schedules/progress/{request_id}
 
-#### HTTP 400 Bad Request
-```json
-{
-  "error": "Missing required fields"
-}
-```
-
-#### HTTP 500 Internal Server Error
-```json
-{
-  "error": "Internal server error message"
-}
-```
-
-### Examples
-
-#### cURL
-```bash
-curl -X POST http://localhost:5000/api/v1/schedules/generate \
-  -H "Content-Type: application/json" \
-  -d '{
-    "start_date": "2026-03-22",
-    "num_days": 7,
-    "required_doctors_per_shift": 5,
-    "shifts_per_day": 2,
-    "doctors": [
-      {
-        "id": "DOC001",
-        "name": "Trần Văn A",
-        "experiences": 5,
-        "department_id": "DEPT001",
-        "specialization": "Ngoại khoa",
-        "days_off": [],
-        "preferred_extra_days": []
-      }
-    ],
-    "pareto_options_limit": 6
-  }'
-```
-
-#### Python
-```python
-import requests
-import json
-
-url = "http://localhost:5000/api/v1/schedules/generate"
-payload = {
-    "start_date": "2026-03-22",
-    "num_days": 7,
-    "required_doctors_per_shift": 5,
-    "shifts_per_day": 2,
-    "doctors": [
-        {
-            "id": "DOC001",
-            "name": "Trần Văn A",
-            "experiences": 5,
-            "department_id": "DEPT001",
-            "specialization": "Ngoại khoa",
-            "days_off": [],
-            "preferred_extra_days": []
-        }
-    ],
-    "pareto_options_limit": 6
-}
-
-response = requests.post(url, json=payload)
-data = response.json()
-print(f"Request ID: {data['request_id']}")
-```
-
----
-
-## GET `/api/v1/schedules/progress/{request_id}`
-
-Lấy tiến độ hiện tại và kết quả của yêu cầu sinh lịch.
-
-### Request
-
-**Method:** GET  
-**HTTP Status:** 200 OK (completed) or 202 Accepted (processing)
-
-#### URL Parameters
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `request_id` | string | Yes | ID của request sinh lịch |
+Lấy trạng thái job hiện tại.
 
 ### Response
 
-#### HTTP 202 Accepted (Still Processing)
-
 ```json
 {
-  "request_id": "req_a1b2c3d4e5f6",
+  "request_id": "550e8400-e29b-41d4-a716-446655440000",
   "status": "running",
-  "progress_percent": 45.0,
-  "message": "Processing schedule generation...",
-  "result": null,
+  "progress_percent": 65,
+  "message": "Đang tối ưu bằng NSGA-II cải tiến (thế hệ 260/400)",
   "error": null
 }
 ```
 
-#### HTTP 200 OK (Completed)
+### Status codes
+
+- `200`: tìm thấy request_id.
+- `404`: không có request_id.
+
+### Ý nghĩa status
+
+- `queued`: đã vào DynamoDB/SQS.
+- `running`: worker Lambda đang xử lý.
+- `completed`: đã có kết quả.
+- `failed`: job lỗi, xem `error`.
+
+## 4. GET /api/v1/schedules/jobs/{request_id}/schedule
+
+Lấy lịch đã hoàn tất và các phương án Pareto.
+
+### Response shape
 
 ```json
 {
-  "request_id": "req_a1b2c3d4e5f6",
-  "status": "completed",
-  "progress_percent": 100.0,
-  "message": "Schedule generation completed successfully",
-  "result": {
-    "selected_option_id": "opt_1_1711123456789",
-    "selected_schedule": {
-      "start_date": "2026-03-22",
-      "num_days": 7,
-      "required_doctors_per_shift": 5,
-      "shifts_per_day": 2,
-      "metrics": {
-        "hard_violation_score": 0,
-        "soft_violation_score": 2.5,
-        "fairness_std": 0.82,
-        "shift_fairness_std": 0.82,
-        "day_off_fairness_std": 1.2,
-        "day_off_fairness_jain": 0.93,
-        "weekly_fairness_jain": 0.95,
-        "monthly_fairness_jain": 0.95,
-        "yearly_fairness_jain": 0.95,
-        "holiday_fairness_jain": 0.92,
-        "hard_score_visual": 0,
-        "soft_score_visual": 8.5,
-        "fairness_score_visual": 8.5,
-        "overall_score_visual": 9.2,
-        "score_badges": {
-          "fairness": "good",
-          "compliance": "excellent"
-        },
-        "weekly_underwork_doctors": []
-      },
-      "assignments": [
-        {
-          "date": "2026-03-22",
-          "shift": "shift_1",
-          "doctor_ids": ["DOC001", "DOC002", "DOC003", "DOC004", "DOC005"]
-        }
-      ]
-    },
-    "pareto_options": [
-      {
-        "option_id": "opt_1_1711123456789",
-        "metrics": { },
-        "assignments": [ ],
-        "doctor_workload_balances": [
-          {
-            "doctor_id": "DOC001",
-            "doctor_name": "Trần Văn A",
-            "weekly_shift_count": 6,
-            "monthly_shift_count": 24,
-            "yearly_estimated_shift_count": 312,
-            "holiday_shift_count": 1,
-            "day_off_count": 1
-          }
-        ]
-      }
-    ],
-    "algorithm_run_metrics": {
-      "elapsed_seconds": 1.234,
-      "n_generations": 100,
-      "population_size": 10,
-      "pareto_front_size": 6,
-      "best_hard_objective": 0,
-      "best_balance_objective": 0.82,
-      "convergence_hard_ratio": 1.0,
-      "convergence_balance_ratio": 0.92
-    }
+  "request_id": "550e8400-e29b-41d4-a716-446655440000",
+  "selected_option_id": "OPT-01",
+  "selected": {
+    "start_date": "2026-03-25",
+    "num_days": 7,
+    "rooms_per_shift": 2,
+    "doctors_per_room": 2,
+    "shifts_per_day": 2,
+    "assignments": []
   },
-  "error": null
+  "pareto_options": []
 }
 ```
 
-### Errors
+### Status codes
 
-#### HTTP 404 Not Found
+- `200`: job completed.
+- `409`: job đang chạy, queued, hoặc failed.
+- `404`: không có request_id.
+
+## 5. GET /api/v1/schedules/jobs/{request_id}/metrics
+
+Lấy metrics thuật toán và metrics của từng phương án Pareto.
+
+### Response shape
+
 ```json
 {
-  "error": "Request not found"
+  "request_id": "550e8400-e29b-41d4-a716-446655440000",
+  "algorithm_run_metrics": {
+    "elapsed_seconds": 12.45,
+    "n_generations": 260,
+    "population_size": 250,
+    "pareto_front_size": 8,
+    "best_hard_objective": 0.0,
+    "best_soft_objective": 0.15,
+    "best_workload_std_objective": 0.12,
+    "best_fairness_objective": 0.11,
+    "convergence_hard_ratio": null,
+    "convergence_soft_ratio": 0.88,
+    "convergence_workload_ratio": 0.81,
+    "convergence_fairness_ratio": 0.81
+  },
+  "pareto_options": [
+    {
+      "option_id": "OPT-01",
+      "metrics": {}
+    }
+  ]
 }
 ```
 
-#### HTTP 400 Bad Request (Failed)
+### Status codes
+
+- `200`: job completed.
+- `409`: job đang chạy, queued, hoặc failed.
+- `404`: không có request_id.
+
+## 6. Health Check
+
+### GET /health
+
+Response:
+
 ```json
 {
-  "request_id": "req_a1b2c3d4e5f6",
-  "status": "failed",
-  "error": "Error message describing what went wrong"
+  "status": "ok"
 }
 ```
 
-### Examples
+## 7. AWS Verification Checklist
 
-#### cURL
+Để xác nhận thuật toán đã chạy trên AWS, kiểm tra theo thứ tự sau:
+
+1. `POST /api/v1/schedules/run` trả `request_id`.
+2. `GET /api/v1/schedules/progress/{request_id}` chuyển sang `completed`.
+3. `GET /api/v1/schedules/jobs/{request_id}/schedule` trả 200.
+4. `GET /api/v1/schedules/jobs/{request_id}/metrics` trả 200.
+5. DynamoDB item có `status=completed` và `result_s3_key`.
+6. S3 có object `results/{request_id}.json`.
+
+### AWS CLI ví dụ
+
 ```bash
-# Kiểm tra tiến độ (lần 1 - đang xử lý)
-curl http://localhost:5000/api/v1/schedules/progress/req_a1b2c3d4e5f6
+aws dynamodb get-item \
+  --table-name NSGA2IS-SLS-dev-requests \
+  --key '{"request_id": {"S": "paste-request-id-here"}}'
 
-# Output
-{
-  "request_id": "req_a1b2c3d4e5f6",
-  "status": "running",
-  "progress_percent": 50.0
-}
-
-# Kiểm tra tiến độ (lần 2 - hoàn thành)
-curl http://localhost:5000/api/v1/schedules/progress/req_a1b2c3d4e5f6
-
-# Output (with full result)
-{
-  "request_id": "req_a1b2c3d4e5f6",
-  "status": "completed",
-  "progress_percent": 100.0,
-  "result": { ... }
-}
+aws s3 cp \
+  "s3://nsga2is-sls-dev-results-<account-id>/results/paste-request-id-here.json" \
+  -
 ```
 
-#### Python
-```python
-import requests
-import time
+## 8. Deploy nhanh
 
-request_id = "req_a1b2c3d4e5f6"
-url = f"http://localhost:5000/api/v1/schedules/progress/{request_id}"
-
-# Poll until completed
-while True:
-    response = requests.get(url)
-    data = response.json()
-    
-    print(f"Status: {data['status']}, Progress: {data['progress_percent']}%")
-    
-    if data['status'] == 'completed':
-        print("Schedule generated successfully!")
-        print(data['result'])
-        break
-    elif data['status'] == 'failed':
-        print(f"Error: {data['error']}")
-        break
-    
-    time.sleep(1)  # Wait 1 second before polling again
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+npm install -g serverless
+serverless deploy --stage dev
 ```
 
----
+## 9. Notes
 
-## Status Values
-
-| Status | Description |
-|--------|-------------|
-| `queued` | Yêu cầu đã được tiếp nhận, đang chờ xử lý |
-| `running` | Đang sinh lịch |
-| `completed` | Hoàn thành thành công, kết quả sẵn sàng |
-| `failed` | Lỗi khi sinh lịch |
-
----
-
-## HTTP Status Codes
-
-| Code | Meaning |
-|------|---------|
-| 200 | OK - Request completed successfully |
-| 202 | Accepted - Request received, still processing |
-| 400 | Bad Request - Invalid input or failed request |
-| 404 | Not Found - Request ID not found |
-| 500 | Internal Server Error - Server error |
-
----
-
-## Workflow Example
-
-```
-1. POST /api/v1/schedules/generate
-   → Get request_id: "req_abc123"
-   ← HTTP 202 + { request_id: "req_abc123", status: "queued" }
-
-2. GET /api/v1/schedules/progress/req_abc123
-   ← HTTP 202 + { status: "running", progress_percent: 30 }
-
-3. Wait 1-2 seconds...
-
-4. GET /api/v1/schedules/progress/req_abc123
-   ← HTTP 200 + { status: "completed", result: {...} }
-   
+- `progress` endpoint trả DTO trạng thái, không trả full result.
+- `schedule` và `metrics` chỉ trả khi job đã `completed`.
+- CORS lấy từ `APP_CORS_ALLOW_ORIGINS`.

@@ -4,8 +4,6 @@ org: quagntam
 service: NSGA2IS-SLS
 
 custom:
-  wsgi:
-    app: app.app
   pythonRequirements:
     dockerizePip: non-linux # Bắt buộc tải thư viện theo chuẩn Linux của AWS Lambda (tránh lỗi nếu build trên Windows/Mac)
     slim: true              # Loại bỏ các tệp tin không cần thiết của thư viện để giảm dung lượng
@@ -13,32 +11,99 @@ custom:
 provider:
   name: aws
   runtime: python3.12
-  # Uncomment to easily set up a custom domain. Read the docs for more details:
-  # https://www.serverless.com/framework/docs/providers/aws/guide/domains
-  # domain: api.example.com
+  timeout: 30
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - sqs:SendMessage
+            - sqs:ReceiveMessage
+            - sqs:DeleteMessage
+            - sqs:GetQueueAttributes
+          Resource:
+            - Fn::GetAtt: [ScheduleJobsQueue, Arn]
+        - Effect: Allow
+          Action:
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+          Resource:
+            - Fn::GetAtt: [ScheduleRequestsTable, Arn]
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+            - s3:GetObject
+          Resource:
+            - Fn::Join:
+                - ""
+                - - "arn:aws:s3:::"
+                  - Ref: ScheduleResultsBucket
+                  - "/*"
+  environment:
+    PYTHONPATH: "/var/task:/var/task/server"
+    APP_OPTIMIZER_POPULATION_SIZE: 80
+    APP_OPTIMIZER_GENERATIONS: 120
+    APP_PARETO_OPTIONS_LIMIT: 4
+    SCHEDULE_QUEUE_URL:
+      Ref: ScheduleJobsQueue
+    SCHEDULE_TABLE_NAME:
+      Ref: ScheduleRequestsTable
+    SCHEDULE_RESULTS_BUCKET:
+      Ref: ScheduleResultsBucket
 
 functions:
   api:
-    handler: wsgi_handler.handler
+    handler: server.app.main.handler
+    timeout: 30
     events:
-      - http:
+      - httpApi:
           path: /
           method: ANY
-      - http:
+      - httpApi:
           path: /{proxy+}
           method: ANY
-
-plugins:
-  - serverless-wsgi
-  - serverless-python-requirements
+  worker:
+    handler: server.app.worker.handler
+    timeout: 900
+    memorySize: 1024
+    events:
+      - sqs:
+          arn:
+            Fn::GetAtt: [ScheduleJobsQueue, Arn]
+          batchSize: 1
 
 package:
   patterns:
     - '!node_modules/**'
     - '!tests/**'
-    - '!README.md'
     - '!.git/**'
     - '!venv/**'
     - '!.venv/**'
-    - '!__pycache__/**'
+    - '!**/__pycache__/**'
+    - '!**/*.pyc'
     - '!.serverless/**'
+    - '!server/src/**'
+
+resources:
+  Resources:
+    ScheduleJobsQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        VisibilityTimeout: 930
+        MessageRetentionPeriod: 1209600
+    ScheduleRequestsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:service}-${sls:stage}-requests
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: request_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: request_id
+            KeyType: HASH
+    ScheduleResultsBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: nsga2is-sls-${sls:stage}-results-${aws:accountId}
