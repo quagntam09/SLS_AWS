@@ -32,10 +32,10 @@ RETRIABLE_ERROR_CODES = {
     "SlowDown",
 }
 
-STATUS_PENDING = "PENDING"
-STATUS_RUNNING = "RUNNING"
-STATUS_COMPLETED = "COMPLETED"
-STATUS_FAILED = "FAILED"
+STATUS_PENDING = "queued"
+STATUS_RUNNING = "running"
+STATUS_COMPLETED = "completed"
+STATUS_FAILED = "failed"
 
 
 def _normalize_status(status: object) -> str:

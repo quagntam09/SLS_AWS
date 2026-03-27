@@ -34,7 +34,7 @@ def _require_completed_envelope(request_id: str) -> ScheduleGenerationEnvelopeDT
     if progress is None:
         raise HTTPException(status_code=404, detail="Không tìm thấy request_id")
 
-    status = str(progress.get("status", "PENDING")).upper()
+    status = str(progress.get("status", "queued")).upper()
     if status == "FAILED":
         raise HTTPException(
             status_code=409,
@@ -88,7 +88,7 @@ def get_schedule_progress(request_id: str) -> ScheduleJobStatusDTO:
         raise HTTPException(status_code=404, detail="Không tìm thấy request_id")
     return ScheduleJobStatusDTO(
         request_id=progress["request_id"],
-        status=str(progress.get("status", "PENDING")).upper(),
+        status=str(progress.get("status", "queued")),
         progress_percent=int(progress.get("progress_percent", 0)),
         message=progress.get("message", ""),
         error=progress.get("error"),
