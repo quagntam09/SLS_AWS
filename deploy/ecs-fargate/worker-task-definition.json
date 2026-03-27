@@ -1,0 +1,75 @@
+{
+  "family": "nsga2is-sls-worker",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024",
+  "memory": "2048",
+  "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/nsga2is-sls-fargate-execution-role",
+  "taskRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/nsga2is-sls-fargate-task-role",
+  "runtimePlatform": {
+    "cpuArchitecture": "X86_64",
+    "operatingSystemFamily": "LINUX"
+  },
+  "containerDefinitions": [
+    {
+      "name": "nsga2-worker",
+      "image": "<ACCOUNT_ID>.dkr.ecr.ap-southeast-1.amazonaws.com/nsga2is-sls-worker:latest",
+      "essential": true,
+      "command": ["python", "-m", "server.app.worker"],
+      "environment": [
+        {
+          "name": "APP_ENV",
+          "value": "production"
+        },
+        {
+          "name": "APP_OPTIMIZER_POPULATION_SIZE",
+          "value": "500"
+        },
+        {
+          "name": "APP_OPTIMIZER_GENERATIONS",
+          "value": "500"
+        },
+        {
+          "name": "APP_PARETO_OPTIONS_LIMIT",
+          "value": "6"
+        },
+        {
+          "name": "APP_PROGRESS_UPDATE_INTERVAL",
+          "value": "50"
+        },
+        {
+          "name": "APP_RANDOMIZATION_STRENGTH",
+          "value": "0.08"
+        },
+        {
+          "name": "APP_RANDOM_SEED",
+          "value": "42"
+        },
+        {
+          "name": "TABLE_NAME",
+          "value": "nsga2is-sls-dev-requests"
+        },
+        {
+          "name": "BUCKET_NAME",
+          "value": "nsga2is-sls-dev-results"
+        },
+        {
+          "name": "AWS_REGION",
+          "value": "ap-southeast-1"
+        },
+        {
+          "name": "LOG_LEVEL",
+          "value": "INFO"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/nsga2is-sls-worker",
+          "awslogs-region": "ap-southeast-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}

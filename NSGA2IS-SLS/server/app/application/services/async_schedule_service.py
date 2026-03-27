@@ -19,6 +19,8 @@ from botocore.exceptions import (
 MAX_RETRIES = 3
 BASE_BACKOFF_SECONDS = 0.25
 MAX_ERROR_LENGTH = 1000
+AWS_REGION_ENV = "AWS_REGION"
+AWS_DEFAULT_REGION_ENV = "AWS_DEFAULT_REGION"
 RETRIABLE_ERROR_CODES = {
     "InternalError",
     "InternalFailure",
@@ -64,21 +66,33 @@ def _required_env(name: str) -> str:
     return value
 
 
+def _aws_region() -> str | None:
+    return os.getenv(AWS_REGION_ENV) or os.getenv(AWS_DEFAULT_REGION_ENV)
+
+
+@lru_cache(maxsize=1)
+def _session():
+    region_name = _aws_region()
+    if region_name:
+        return boto3.session.Session(region_name=region_name)
+    return boto3.session.Session()
+
+
 @lru_cache(maxsize=1)
 def _table():
     table_name = _required_env("TABLE_NAME")
-    dynamodb = boto3.resource("dynamodb")
+    dynamodb = _session().resource("dynamodb")
     return dynamodb.Table(table_name)
 
 
 @lru_cache(maxsize=1)
 def _sqs_client():
-    return boto3.client("sqs")
+    return _session().client("sqs")
 
 
 @lru_cache(maxsize=1)
 def _s3_client():
-    return boto3.client("s3")
+    return _session().client("s3")
 
 
 def _queue_url() -> str:
