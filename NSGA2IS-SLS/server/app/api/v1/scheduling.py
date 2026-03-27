@@ -23,6 +23,7 @@ from ...domain.schemas import (
     ScheduleRequestAcceptedDTO,
     ScheduleRunRequestDTO,
 )
+from .schedule_validation import validate_schedule_feasibility
 
 router = APIRouter(prefix="/schedules", tags=["Schedules"])
 logger = logging.getLogger(__name__)
@@ -56,9 +57,12 @@ def _require_completed_envelope(request_id: str) -> ScheduleGenerationEnvelopeDT
 def run_schedule(payload: ScheduleRunRequestDTO) -> ScheduleRequestAcceptedDTO:
     """Đưa job vào hàng đợi tối ưu NSGA-II với payload nghiệp vụ."""
     try:
+        validate_schedule_feasibility(payload)
         return ScheduleRequestAcceptedDTO.model_validate(
             create_schedule_request(payload.model_dump(mode="json"))
         )
+    except HTTPException:
+        raise
     except (RuntimeError, BotoCoreError, ClientError) as exc:
         logger.exception("Unable to submit schedule request")
         raise HTTPException(
