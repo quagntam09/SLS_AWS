@@ -36,7 +36,12 @@ WantedBy=multi-user.target
 - `ExecStart`: dùng venv riêng để tránh phụ thuộc Python hệ thống.
 - `Restart=always` và `RestartSec=5`: tự khởi động lại nếu process crash hoặc bị kill, chờ 5 giây trước khi restart.
 - `StandardOutput=journal` và `StandardError=journal`: đẩy log vào `journald` để xem bằng `journalctl`.
-- `EnvironmentFile=-/etc/nsga2is-sls-worker.env`: file env là tùy chọn; dấu `-` giúp service vẫn chạy nếu file chưa tồn tại.
+- `EnvironmentFile=-/etc/nsga2is-sls-worker.env`: file env do script EC2 tạo ra, chứa `QUEUE_URL`, `TABLE_NAME`, `BUCKET_NAME` và các biến runtime liên quan.
+
+## Lưu ý vận hành
+
+- SQS visibility timeout phải đủ dài cho thời gian xử lý thực tế; code hiện dùng 1800 giây để phù hợp workload nặng.
+- Nếu cần debug nhanh, `journalctl -u nsga2-worker.service -n 50 -o cat` thường đủ để xem lỗi gần nhất.
 
 ## Các lệnh triển khai trên EC2
 

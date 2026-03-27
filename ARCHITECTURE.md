@@ -52,16 +52,22 @@ flowchart LR
 - Worker: tiến trình EC2 long-poll SQS.
 - Định tuyến AWS hiện tại có `ROOT_PATH=/dev` trong `serverless.yml`.
 - Kết quả S3 được lưu dưới key `results/{request_id}.json`.
-- Source code ứng dụng nằm dưới `NSGA2IS-SLS/server`, còn import runtime chạy từ package root `NSGA2IS-SLS`.
+- Runtime import chạy từ package root `NSGA2IS-SLS`, nên `PYTHONPATH` ở Lambda/EC2 đều phải trỏ về thư mục này để import `server.app.*` đúng cách.
 
-## 5. Điểm cần nhớ
+## 5. Giới Hạn Hiện Tại
+
+- API chưa có authentication/authorization.
+- DynamoDB và S3 chưa có TTL hoặc lifecycle policy tự động cho dữ liệu job đã xong.
+- Worker cập nhật progress theo chu kỳ `APP_PROGRESS_UPDATE_INTERVAL`, không ghi ở mọi thế hệ.
+
+## 6. Điểm cần nhớ
 
 - API không chạy thuật toán trực tiếp.
 - `schedule` và `metrics` chỉ trả khi job đã `COMPLETED`.
 - `progress` chỉ phản ánh trạng thái job, không trả full result.
 - `APP_PROGRESS_UPDATE_INTERVAL` giúp giảm số lần cập nhật DynamoDB khi worker chạy lâu.
 
-## 6. Tài liệu liên quan
+## 7. Tài liệu liên quan
 
 - [README.md](README.md)
 - [API.md](API.md)

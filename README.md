@@ -18,6 +18,12 @@ Hệ thống sinh lịch trực bác sĩ bằng NSGA-II cải tiến. API FastAP
 - DynamoDB lưu `status`, `progress_percent`, `message`, `error` và key kết quả.
 - S3 lưu payload kết quả hoàn chỉnh của từng `request_id`.
 
+## Lưu Ý Vận Hành
+
+- API hiện chưa có authentication/authorization. Nếu mở ra ngoài mạng nội bộ, cần đặt lớp bảo vệ phía trước.
+- Kết quả trong DynamoDB/S3 chưa có TTL hay lifecycle policy tự động, nên cần kế hoạch dọn dữ liệu nếu số job tăng.
+- Worker chỉ ghi progress theo chu kỳ `APP_PROGRESS_UPDATE_INTERVAL`; thế hệ cuối luôn cập nhật `100%`.
+
 ## Cấu Trúc Chính
 
 ```text
@@ -84,6 +90,8 @@ BUCKET_NAME=
 Trong `serverless.yml`, các biến này được inject cho Lambda; worker EC2 và EC2 API setup dùng cùng bộ tên canonical khi dựng env file.
 
 `APP_PROGRESS_UPDATE_INTERVAL` điều khiển tần suất worker ghi tiến độ xuống DynamoDB. Ví dụ `50` nghĩa là chỉ cập nhật theo chu kỳ thế hệ, thay vì ghi ở mọi vòng lặp.
+
+`ROOT_PATH=/dev` được dùng cho Lambda/API Gateway hiện tại; nếu đổi stage hay prefix, cần đồng bộ trong `serverless.yml` và `server/app/main.py`.
 
 Khi chạy local, nhớ thực hiện từ bên trong thư mục `NSGA2IS-SLS/` vì code application nằm dưới package đó.
 
