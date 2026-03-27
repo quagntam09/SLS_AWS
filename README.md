@@ -81,7 +81,7 @@ TABLE_NAME=
 BUCKET_NAME=
 ```
 
-Trong `serverless.yml`, các biến tương đương `SCHEDULE_QUEUE_URL`, `SCHEDULE_TABLE_NAME`, `SCHEDULE_RESULTS_BUCKET` cũng được gán sẵn để tương thích với worker và script cũ.
+Trong `serverless.yml`, các biến này được inject cho Lambda; worker EC2 và EC2 API setup dùng cùng bộ tên canonical khi dựng env file.
 
 `APP_PROGRESS_UPDATE_INTERVAL` điều khiển tần suất worker ghi tiến độ xuống DynamoDB. Ví dụ `50` nghĩa là chỉ cập nhật theo chu kỳ thế hệ, thay vì ghi ở mọi vòng lặp.
 
@@ -119,9 +119,12 @@ Base path hiện tại trên AWS là `/dev`, nên URL thực tế sẽ bao gồm
 Bộ file trong `deploy/` và các script gốc ở thư mục root dùng để dựng EC2 chạy API public qua nginx hoặc dựng worker riêng:
 
 - `ec2_api_setup.sh`: dựng máy, cài Python/nginx, clone source, tạo virtualenv, tạo systemd unit và cấu hình reverse proxy
+- `ec2_worker_setup.sh`: dựng máy, cài Python, clone source, tạo virtualenv, tạo env file và systemd unit cho worker SQS
 - `deploy/user-data/ec2-api-user-data.sh`: user-data để EC2 tự chạy setup khi launch
+- `deploy/user-data/ec2-worker-user-data.sh`: user-data để EC2 tự chạy setup worker khi launch
 - `deploy/user-data/launch-template-user-data.sh`: mẫu user-data cho Launch Template
 - `deploy/systemd/nsga2is-sls-api.service`: mẫu systemd unit cho FastAPI
+- `deploy/systemd/nsga2-worker.service`: mẫu systemd unit cho worker nền
 - `deploy/nginx/nsga2is-sls-api.conf`: mẫu nginx reverse proxy về `127.0.0.1:8000`
 
 Worker EC2 dùng entrypoint `python -m server.app.worker` và cùng layout package với API, nên `PYTHONPATH` phải trỏ vào `NSGA2IS-SLS/`.

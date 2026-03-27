@@ -57,22 +57,16 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _required_env(name: str, legacy_name: str | None = None) -> str:
+def _required_env(name: str) -> str:
     value = os.getenv(name)
-    if not value and legacy_name:
-        value = os.getenv(legacy_name)
     if not value:
-        if legacy_name:
-            raise RuntimeError(
-                f"Missing required environment variable: {name} (or legacy {legacy_name})"
-            )
         raise RuntimeError(f"Missing required environment variable: {name}")
     return value
 
 
 @lru_cache(maxsize=1)
 def _table():
-    table_name = _required_env("TABLE_NAME", "SCHEDULE_TABLE_NAME")
+    table_name = _required_env("TABLE_NAME")
     dynamodb = boto3.resource("dynamodb")
     return dynamodb.Table(table_name)
 
@@ -88,11 +82,11 @@ def _s3_client():
 
 
 def _queue_url() -> str:
-    return _required_env("QUEUE_URL", "SCHEDULE_QUEUE_URL")
+    return _required_env("QUEUE_URL")
 
 
 def _bucket_name() -> str:
-    return _required_env("BUCKET_NAME", "SCHEDULE_RESULTS_BUCKET")
+    return _required_env("BUCKET_NAME")
 
 
 def _result_s3_key(request_id: str) -> str:

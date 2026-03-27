@@ -1,0 +1,22 @@
+[Unit]
+Description=NSGA2IS-SLS background worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/nsga2is-sls/NSGA2IS-SLS
+Environment=PYTHONPATH=/opt/nsga2is-sls/NSGA2IS-SLS
+EnvironmentFile=-/etc/nsga2is-sls-worker.env
+ExecStart=/opt/nsga2is-sls/NSGA2IS-SLS/venv/bin/python -m server.app.worker
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=60
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

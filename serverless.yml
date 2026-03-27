@@ -17,6 +17,23 @@ provider:
   runtime: python3.12
   region: ap-southeast-1
   timeout: 30
+  httpApi:
+    cors:
+      allowedOrigins:
+        - "http://localhost:3000"
+        - "https://nsga-ii-ot.vercel.app"
+      allowedHeaders:
+        - Content-Type
+        - Authorization
+        - X-Requested-With
+      allowedMethods:
+        - GET
+        - POST
+        - PUT
+        - PATCH
+        - DELETE
+        - OPTIONS
+      allowCredentials: true
   iam:
     role:
       statements:
@@ -41,7 +58,7 @@ provider:
                   - Ref: ScheduleResultsBucket
                   - "/*"
   environment:
-    PYTHONPATH: "/var/task:/var/task/NSGA2IS-SLS"
+    PYTHONPATH: "/var/task/NSGA2IS-SLS"
     APP_ENV: ${env:APP_ENV, 'production'}
     APP_OPTIMIZER_POPULATION_SIZE: ${env:APP_OPTIMIZER_POPULATION_SIZE, 500}
     APP_OPTIMIZER_GENERATIONS: ${env:APP_OPTIMIZER_GENERATIONS, 500}
@@ -49,14 +66,8 @@ provider:
     APP_PROGRESS_UPDATE_INTERVAL: ${env:APP_PROGRESS_UPDATE_INTERVAL, 50}
     APP_RANDOMIZATION_STRENGTH: ${env:APP_RANDOMIZATION_STRENGTH, 0.08}
     APP_RANDOM_SEED: ${env:APP_RANDOM_SEED, 42}
-    APP_CORS_ALLOW_ORIGINS: ${env:APP_CORS_ALLOW_ORIGINS, 'http://localhost:3000'}
+    APP_CORS_ALLOW_ORIGINS: "http://localhost:3000,https://nsga-ii-ot.vercel.app"
     ROOT_PATH: /dev
-    SCHEDULE_QUEUE_URL:
-      Ref: ScheduleJobsQueue
-    SCHEDULE_TABLE_NAME:
-      Ref: ScheduleRequestsTable
-    SCHEDULE_RESULTS_BUCKET:
-      Ref: ScheduleResultsBucket
     QUEUE_URL:
       Ref: ScheduleJobsQueue
     TABLE_NAME:
@@ -94,7 +105,6 @@ package:
     - '!**/__pycache__/**'
     - '!**/*.pyc'
     - '!.env'
-    - '!server/src/**'
 
 resources:
   Resources:

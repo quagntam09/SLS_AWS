@@ -16,7 +16,7 @@ from .config import get_settings
 from .domain.schemas import ScheduleRunRequestDTO
 
 
-QUEUE_URL_ENV = "SCHEDULE_QUEUE_URL"
+QUEUE_URL_ENV = "QUEUE_URL"
 AWS_REGION_ENV = "AWS_REGION"
 RECEIVE_WAIT_SECONDS = 20
 MESSAGE_VISIBILITY_TIMEOUT_SECONDS = 1800
