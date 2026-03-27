@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-STACK_NAME="${STACK_NAME:-<NSGA2IS-SLS-dev>}"
-GIT_REPO_URL="${GIT_REPO_URL:-<https://github.com/quagntam09/SLS_AWS.git>}"
-AWS_REGION="${AWS_REGION:-<ap-southeast-1>}"
+STACK_NAME="${STACK_NAME:-NSGA2IS-SLS-dev}"
+GIT_REPO_URL="${GIT_REPO_URL:-https://github.com/quagntam09/SLS_AWS.git}"
+AWS_REGION="${AWS_REGION:-ap-southeast-1}"
 
 APP_NAME="nsga2is-sls"
 APP_DIR="/opt/${APP_NAME}"
@@ -24,7 +24,7 @@ require_non_placeholder() {
   local var_name="$1"
   local var_value="$2"
 
-  if [[ -z "${var_value}" || "${var_value}" == "<REPLACE_ME>" ]]; then
+  if [[ -z "${var_value}" || "${var_value}" == "<REPLACE_ME>" || "${var_value}" == "REPLACE_ME" || "${var_value}" == \<*\> ]]; then
     log "Biến ${var_name} chưa được cấu hình. Hãy điền giá trị thật vào đầu file ec2_worker_setup.sh."
     exit 1
   fi
@@ -125,14 +125,19 @@ create_virtualenv() {
 }
 
 write_env_file() {
+  local queue_url="$1"
+  local table_name="$2"
+  local bucket_name="$3"
+
   log "Ghi file environment ${ENV_FILE}"
   cat >"${ENV_FILE}" <<EOF
 AWS_REGION=${AWS_REGION}
 APP_ENV=production
-QUEUE_URL=${QUEUE_URL}
-TABLE_NAME=${TABLE_NAME}
-BUCKET_NAME=${BUCKET_NAME}
+QUEUE_URL=${queue_url}
+TABLE_NAME=${table_name}
+BUCKET_NAME=${bucket_name}
 EOF
+  chown "${SERVICE_USER}:${SERVICE_USER}" "${ENV_FILE}"
   chmod 600 "${ENV_FILE}"
 }
 
@@ -180,13 +185,17 @@ main() {
   fi
 
   log "Lấy outputs từ CloudFormation stack ${STACK_NAME}"
-  QUEUE_URL="$(require_stack_output "ScheduleJobsQueueUrl")"
-  TABLE_NAME="$(require_stack_output "ScheduleRequestsTableName")"
-  BUCKET_NAME="$(require_stack_output "ScheduleResultsBucketName")"
+  local queue_url
+  local table_name
+  local bucket_name
+
+  queue_url="$(require_stack_output "ScheduleJobsQueueUrl")"
+  table_name="$(require_stack_output "ScheduleRequestsTableName")"
+  bucket_name="$(require_stack_output "ScheduleResultsBucketName")"
 
   prepare_source
   create_virtualenv
-  write_env_file
+  write_env_file "${queue_url}" "${table_name}" "${bucket_name}"
   write_systemd_unit
 
   log "Reload systemd và khởi động service"
