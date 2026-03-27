@@ -90,9 +90,10 @@ def _process_message(message: dict[str, object], progress_update_interval: int) 
         )
         mark_completed(request_id, result.model_dump(mode="json"))
         print(f"xử lý thành công Request ID: {request_id}")
-    except Exception:
+    except Exception as exc:
         if request_id:
             mark_failed(request_id, traceback.format_exc())
+        logger.exception("[worker] Failed to process request %s: %s", request_id or "<unknown>", exc)
         raise
 
 
@@ -127,14 +128,12 @@ def run_worker() -> None:
                         QueueUrl=queue_url,
                         ReceiptHandle=str(message["ReceiptHandle"]),
                     )
-                except Exception:
-                    traceback.print_exc()
-                    logger.exception("[worker] Failed to process message")
+                except Exception as exc:
+                    logger.exception("[worker] Failed to process message: %s", exc)
                     if not _stop_event.is_set():
                         time.sleep(ERROR_SLEEP_SECONDS)
-        except Exception:
-            traceback.print_exc()
-            logger.exception("[worker] Polling error")
+        except Exception as exc:
+            logger.exception("[worker] Polling error: %s", exc)
             if not _stop_event.is_set():
                 time.sleep(ERROR_SLEEP_SECONDS)
 
@@ -147,9 +146,8 @@ def main() -> int:
         run_worker()
         print("[worker] Worker stopped normally")
         return 0
-    except Exception as e:
-        print(f"[worker] CRITICAL ERROR: {e}")
-        traceback.print_exc()
+    except Exception:
+        logger.exception("[worker] CRITICAL ERROR")
         return 1
 
 

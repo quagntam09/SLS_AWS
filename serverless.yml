@@ -16,6 +16,7 @@ provider:
   name: aws
   runtime: python3.12
   region: ap-southeast-1
+  # 30s is for the NSGA submit API path; the actual schedule generation runs async in the worker.
   timeout: 30
   httpApi:
     cors:
@@ -78,6 +79,7 @@ provider:
 functions:
   api:
     handler: bootstrap.handler
+    # Keep the submit endpoint aligned with the provider timeout above.
     timeout: 30
     events:
       - httpApi:
