@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-STACK_NAME="${STACK_NAME:-<REPLACE_ME>}"
-GIT_REPO_URL="${GIT_REPO_URL:-<REPLACE_ME>}"
-AWS_REGION="${AWS_REGION:-<REPLACE_ME>}"
+STACK_NAME="${STACK_NAME:-<NSGA2IS-SLS-dev>}"
+GIT_REPO_URL="${GIT_REPO_URL:-<https://github.com/quagntam09/SLS_AWS.git>}"
+AWS_REGION="${AWS_REGION:-<ap-southeast-1>}"
 
 APP_NAME="nsga2is-sls"
 APP_DIR="/opt/${APP_NAME}"
