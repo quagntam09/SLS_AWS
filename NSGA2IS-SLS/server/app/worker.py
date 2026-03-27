@@ -89,7 +89,7 @@ def _process_message(message: dict[str, object], progress_update_interval: int) 
             progress_callback=_build_progress_callback(request_id, progress_update_interval),
         )
         mark_completed(request_id, result.model_dump(mode="json"))
-        print(f"ử lý thành công Request ID: {request_id}")
+        print(f"xử lý thành công Request ID: {request_id}")
     except Exception:
         if request_id:
             mark_failed(request_id, traceback.format_exc())
