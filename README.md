@@ -1,6 +1,6 @@
 # NSGA2IS-SLS
 
-Hệ thống sinh lịch trực bác sĩ bằng NSGA-II cải tiến. API FastAPI nhận request, lưu trạng thái job vào DynamoDB, đẩy payload vào SQS, rồi trả `request_id` ngay. Worker EC2 long-poll SQS, chạy tối ưu, ghi kết quả lên S3 và cập nhật tiến độ job.
+Hệ thống sinh lịch trực bác sĩ bằng NSGA-II cải tiến. API FastAPI nhận request, ghi trạng thái job vào DynamoDB, đẩy payload vào SQS, rồi trả `request_id` ngay. Worker là một process event-driven chạy cùng entrypoint `server.app.worker`, nhận payload từ orchestration bên ngoài, chạy tối ưu, ghi kết quả lên S3 và cập nhật tiến độ job.
 
 ## Tóm Tắt Nhanh
 
@@ -10,19 +10,20 @@ Hệ thống sinh lịch trực bác sĩ bằng NSGA-II cải tiến. API FastAP
 - `GET /api/v1/schedules/jobs/{request_id}/metrics` lấy metrics của lịch.
 - `GET /health` kiểm tra trạng thái ứng dụng.
 
-## Kiến Trúc Ngắn Gọn
+## Kiến Trúc Hiện Tại
 
 - FastAPI chạy trên AWS Lambda qua Mangum.
-- SQS dùng làm hàng đợi giữa API và worker.
-- EC2 worker long-poll SQS để chạy thuật toán nặng.
-- DynamoDB lưu `status`, `progress_percent`, `message`, `error` và key kết quả.
-- S3 lưu payload kết quả hoàn chỉnh của từng `request_id`.
+- API không chạy thuật toán trực tiếp; nó chỉ validate request, ghi DynamoDB và publish message vào SQS.
+- Worker nhận 1 job payload mỗi lần chạy, update `running/completed/failed`, rồi lưu kết quả JSON vào S3.
+- DynamoDB lưu trạng thái job, tiến độ, message lỗi, và key trỏ tới kết quả.
+- Fargate + EventBridge Pipes là đường chạy worker chuẩn trong repo.
 
 ## Lưu Ý Vận Hành
 
 - API hiện chưa có authentication/authorization. Nếu mở ra ngoài mạng nội bộ, cần đặt lớp bảo vệ phía trước.
 - Kết quả trong DynamoDB/S3 chưa có TTL hay lifecycle policy tự động, nên cần kế hoạch dọn dữ liệu nếu số job tăng.
 - Worker chỉ ghi progress theo chu kỳ `APP_PROGRESS_UPDATE_INTERVAL`; thế hệ cuối luôn cập nhật `100%`.
+- Payload sinh lịch phải hợp lệ theo schema: tối thiểu 12 bác sĩ và `shifts_per_day` hiện được cố định ở `2`.
 
 ## Cấu Trúc Chính
 
@@ -85,9 +86,19 @@ Luồng async trên AWS cần các biến runtime sau:
 QUEUE_URL=
 TABLE_NAME=
 BUCKET_NAME=
+AWS_REGION=
 ```
 
-Trong `serverless.yml`, các biến này được inject cho Lambda; worker EC2 và EC2 API setup dùng cùng bộ tên canonical khi dựng env file.
+Worker entrypoint còn hỗ trợ các biến/đầu vào riêng nếu chạy trực tiếp hoặc qua orchestrator:
+
+```bash
+WORKER_EVENT_JSON=
+REQUEST_ID=
+WORKER_MAX_RUNTIME_SECONDS=
+LOG_LEVEL=
+```
+
+Trong `serverless.yml`, các biến AWS này được inject cho Lambda; worker Fargate và các script bootstrap cũng dùng cùng bộ tên canonical khi dựng env file.
 
 `APP_PROGRESS_UPDATE_INTERVAL` điều khiển tần suất worker ghi tiến độ xuống DynamoDB. Ví dụ `50` nghĩa là chỉ cập nhật theo chu kỳ thế hệ, thay vì ghi ở mọi vòng lặp.
 
@@ -108,6 +119,8 @@ Sau khi chạy, API sẵn sàng tại:
 - `http://127.0.0.1:8000/docs`
 - `http://127.0.0.1:8000/redoc`
 
+Nếu cần chạy worker thủ công, dùng payload JSON hợp lệ qua `--event`, `--payload`, hoặc `WORKER_EVENT_JSON`.
+
 ## Deploy AWS
 
 ```bash
@@ -122,25 +135,14 @@ serverless info --stage dev
 
 Base path hiện tại trên AWS là `/dev`, nên URL thực tế sẽ bao gồm tiền tố này khi đi qua API Gateway.
 
-## Deploy EC2 Worker/API
+## Deploy Worker
 
-Bộ file trong `deploy/` và các script gốc ở thư mục root dùng để dựng EC2 chạy API public qua nginx hoặc dựng worker riêng:
-
-- `ec2_api_setup.sh`: dựng máy, cài Python/nginx, clone source, tạo virtualenv, tạo systemd unit và cấu hình reverse proxy
-- `ec2_worker_setup.sh`: dựng máy, cài Python, clone source, tạo virtualenv, tạo env file và systemd unit cho worker SQS
-- `deploy/user-data/ec2-api-user-data.sh`: user-data để EC2 tự chạy setup khi launch
-- `deploy/user-data/ec2-worker-user-data.sh`: user-data để EC2 tự chạy setup worker khi launch
-- `deploy/user-data/launch-template-user-data.sh`: mẫu user-data cho Launch Template
-- `deploy/systemd/nsga2is-sls-api.service`: mẫu systemd unit cho FastAPI
-- `deploy/systemd/nsga2-worker.service`: mẫu systemd unit cho worker nền
-- `deploy/nginx/nsga2is-sls-api.conf`: mẫu nginx reverse proxy về `127.0.0.1:8000`
-
-Worker EC2 dùng entrypoint `python -m server.app.worker` và cùng layout package với API, nên `PYTHONPATH` phải trỏ vào `NSGA2IS-SLS/`.
-
-Nếu chưa có domain, có thể đặt `SERVER_NAME=_` trong cấu hình nginx.
+- Khuyến nghị dùng `deploy/ecs-fargate/README.md` cho mô hình SQS -> EventBridge Pipes -> Fargate worker.
+- Worker entrypoint chạy bằng `python -m server.app.worker` và nhận payload qua `--event`, `--payload`, hoặc `WORKER_EVENT_JSON`.
 
 ## Tài Liệu Liên Quan
 
 - [API.md](API.md)
 - [ARCHITECTURE.md](ARCHITECTURE.md)
+- [deploy/ecs-fargate/README.md](deploy/ecs-fargate/README.md)
 - [serverless.yml](serverless.yml)

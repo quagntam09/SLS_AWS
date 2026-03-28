@@ -85,6 +85,7 @@ dmypy.json
 .history/
 tools/
 artifacts/
+legacy/ec2/
 
 # NSGA2IS-SLS generated experiment outputs
 NSGA2IS-SLS/artifacts/aws-experiments/**

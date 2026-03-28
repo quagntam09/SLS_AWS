@@ -239,6 +239,7 @@ Kiểm tra output:
 - `WORKER_EVENT_JSON` phải nhận payload gốc từ SQS body.
 - `REQUEST_ID` phải map từ `$.body.request_id`.
 - Pipe role phải có quyền gửi message tới DLQ.
+- Worker entrypoint không tự long-poll SQS; Pipes là lớp orchestration cấp payload cho task.
 
 ### 6.3. Kiểm tra DLQ sau khi deploy
 

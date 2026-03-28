@@ -1,6 +1,6 @@
 # ECS/Fargate Worker Mẫu
 
-Bộ file này là mẫu triển khai cho worker container chạy trên AWS Fargate, được kích hoạt bởi EventBridge Pipes từ SQS.
+Bộ file này là đường chạy worker được khuyến nghị cho kiến trúc hiện tại: SQS -> EventBridge Pipes -> Fargate task -> `server.app.worker`.
 
 ## 1. Task Definition
 
@@ -9,7 +9,7 @@ File: [worker-task-definition.json](worker-task-definition.json)
 - Dùng image build từ [Dockerfile](../../Dockerfile).
 - Chạy entrypoint `python -m server.app.worker`.
 - Nhận payload job qua biến môi trường `WORKER_EVENT_JSON`.
-- Giữ các biến cấu hình runtime của worker: `APP_*`, `TABLE_NAME`, `BUCKET_NAME`, `AWS_REGION`.
+- Giữ các biến cấu hình runtime của worker: `APP_*`, `TABLE_NAME`, `BUCKET_NAME`, `AWS_REGION`, `LOG_LEVEL`.
 
 ## 2. EventBridge Pipes
 
@@ -49,14 +49,14 @@ Worker hiện tại hỗ trợ message body có dạng:
 }
 ```
 
-Đây cũng là format mà API hiện tại ghi vào SQS, nên có thể dùng lại trực tiếp cho Pipes.
+Đây cũng là format mà API hiện tại ghi vào SQS, nên có thể dùng lại trực tiếp cho Pipes. Nếu chạy manual, bạn có thể truyền chính payload này qua `--event`/`--payload` hoặc set `WORKER_EVENT_JSON`.
 
 ## 4. IAM tối thiểu
 
 Cần 2 nhóm quyền chính:
 
 - **Pipes role**: `ecs:RunTask`, `iam:PassRole`, quyền đọc SQS.
-- **Task role**: quyền truy cập DynamoDB và S3 giống worker EC2 trước đây.
+- **Task role**: quyền truy cập DynamoDB và S3.
 
 ## 5. Ghi chú triển khai
 
