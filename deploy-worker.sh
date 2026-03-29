@@ -2,13 +2,22 @@
 set -euo pipefail
 
 TAG="${1:-latest}"
-AWS_REGION="ap-southeast-1"
-AWS_ACCOUNT_ID="291515987628"
-ECR_REPOSITORY="nsga2is-sls-worker"
-STACK_NAME="nsga2is-sls-worker-fargate"
-TEMPLATE_FILE="deploy/ecs-fargate/worker-fargate-stack.yaml"
+AWS_REGION="${AWS_REGION:-ap-southeast-1}"
+AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-}"
+ECR_REPOSITORY="${ECR_REPOSITORY:-nsga2is-sls-worker}"
+STACK_NAME="${STACK_NAME:-nsga2is-sls-worker-fargate}"
+TEMPLATE_FILE="${TEMPLATE_FILE:-deploy/ecs-fargate/worker-fargate-stack.yaml}"
+VPC_ID="${VPC_ID:-}"
+SUBNET_IDS="${SUBNET_IDS:-}"
+QUEUE_ARN="${QUEUE_ARN:-}"
+TABLE_NAME="${TABLE_NAME:-}"
+BUCKET_NAME="${BUCKET_NAME:-}"
+CPU="${CPU:-2048}"
+MEMORY="${MEMORY:-4096}"
+ASSIGN_PUBLIC_IP="${ASSIGN_PUBLIC_IP:-DISABLED}"
 IMAGE_LOCAL="${ECR_REPOSITORY}:${TAG}"
 IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${TAG}"
+DEPLOY_ENV_FILE="${DEPLOY_ENV_FILE:-${SCRIPT_DIR:-.}/.deploy-worker.env}"
 
 COLOR_RESET='\033[0m'
 COLOR_BLUE='\033[1;34m'
@@ -37,10 +46,37 @@ trap 'log_error "Deploy worker failed."' ERR
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${SCRIPT_DIR}"
 
+if [[ -f "${DEPLOY_ENV_FILE}" ]]; then
+  # shellcheck disable=SC1090
+  set -a
+  source "${DEPLOY_ENV_FILE}"
+  set +a
+  AWS_REGION="${AWS_REGION:-ap-southeast-1}"
+  AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-}"
+  ECR_REPOSITORY="${ECR_REPOSITORY:-nsga2is-sls-worker}"
+  STACK_NAME="${STACK_NAME:-nsga2is-sls-worker-fargate}"
+  TEMPLATE_FILE="${TEMPLATE_FILE:-deploy/ecs-fargate/worker-fargate-stack.yaml}"
+  VPC_ID="${VPC_ID:-}"
+  SUBNET_IDS="${SUBNET_IDS:-}"
+  QUEUE_ARN="${QUEUE_ARN:-}"
+  TABLE_NAME="${TABLE_NAME:-}"
+  BUCKET_NAME="${BUCKET_NAME:-}"
+  CPU="${CPU:-2048}"
+  MEMORY="${MEMORY:-4096}"
+  ASSIGN_PUBLIC_IP="${ASSIGN_PUBLIC_IP:-DISABLED}"
+  IMAGE_LOCAL="${ECR_REPOSITORY}:${TAG}"
+  IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${TAG}"
+fi
+
 log_step "Starting worker deploy with tag: ${TAG}"
 log_info "Repository root: ${SCRIPT_DIR}"
 log_info "AWS Region: ${AWS_REGION}"
 log_info "ECR Image URI: ${IMAGE_URI}"
+
+if [[ -z "${AWS_ACCOUNT_ID}" || -z "${VPC_ID}" || -z "${SUBNET_IDS}" || -z "${QUEUE_ARN}" || -z "${TABLE_NAME}" || -z "${BUCKET_NAME}" ]]; then
+  log_error "Missing required environment variables: AWS_ACCOUNT_ID, VPC_ID, SUBNET_IDS, QUEUE_ARN, TABLE_NAME, BUCKET_NAME"
+  exit 1
+fi
 
 if ! command -v docker >/dev/null 2>&1; then
   log_error "Docker CLI is not installed or not available in PATH."
@@ -74,15 +110,15 @@ aws cloudformation deploy \
   --template-file "${TEMPLATE_FILE}" \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
-    VpcId="vpc-03a4366d4e8528faf" \
-    SubnetIds="subnet-0a2c32b0ef1b33852,subnet-0de276da35b4ce1e7,subnet-0fe361c9580db70d5" \
-    QueueArn="arn:aws:sqs:ap-southeast-1:291515987628:NSGA2IS-SLS-dev-ScheduleJobsQueue-AYAmKCbwEumX" \
+    VpcId="${VPC_ID}" \
+    SubnetIds="${SUBNET_IDS}" \
+    QueueArn="${QUEUE_ARN}" \
     ImageUri="${IMAGE_URI}" \
-    TableName="NSGA2IS-SLS-dev-requests" \
-    BucketName="nsga2is-sls-dev-scheduleresultsbucket-fgumwsxarl9s" \
-    Cpu="2048" \
-    Memory="4096" \
-    AssignPublicIp="DISABLED"
+    TableName="${TABLE_NAME}" \
+    BucketName="${BUCKET_NAME}" \
+    Cpu="${CPU}" \
+    Memory="${MEMORY}" \
+    AssignPublicIp="${ASSIGN_PUBLIC_IP}"
 log_success "CloudFormation stack updated successfully"
 
 log_success "Worker deployment completed for tag ${TAG}"

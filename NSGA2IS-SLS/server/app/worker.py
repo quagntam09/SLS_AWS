@@ -6,7 +6,6 @@ import logging
 import os
 import signal
 import sys
-import traceback
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -251,12 +250,12 @@ def main(argv: list[str] | None = None) -> None:
         _process_job(job, settings.progress_update_interval)
         _clear_runtime_timeout()
         sys.exit(0)
-    except Exception:
+    except Exception as exc:
         logger.exception("Worker task failed")
 
         if job_request_id:
             try:
-                mark_failed(job_request_id, traceback.format_exc())
+                mark_failed(job_request_id, f"{exc.__class__.__name__}: {exc}")
             except Exception:
                 logger.exception("Unable to persist failure state for %s", job_request_id)
 

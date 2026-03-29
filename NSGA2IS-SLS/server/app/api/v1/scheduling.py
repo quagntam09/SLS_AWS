@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+import hmac
 import logging
 
-from fastapi import APIRouter, HTTPException, status as http_status
+from fastapi import APIRouter, Depends, Header, HTTPException, status as http_status
 from botocore.exceptions import BotoCoreError, ClientError
 
 from ...application.services.async_schedule_service import (
     create_schedule_request,
     get_schedule_progress as load_schedule_progress,
 )
+from ...config import get_settings
 from ...application.services.schedule_view_builder import (
     build_metrics_response,
     build_schedule_response,
@@ -25,8 +27,24 @@ from ...domain.schemas import (
 )
 from .schedule_validation import validate_schedule_feasibility
 
-router = APIRouter(prefix="/schedules", tags=["Schedules"])
 logger = logging.getLogger(__name__)
+
+
+def require_api_key(x_api_key: str | None = Header(default=None, alias="X-API-Key")) -> None:
+    api_key = (get_settings().api_key or "").strip()
+    if not api_key:
+        return
+
+    if not x_api_key or not hmac.compare_digest(x_api_key.strip(), api_key):
+        raise HTTPException(
+            status_code=http_status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized",
+            headers={"WWW-Authenticate": "X-API-Key"},
+        )
+
+
+
+router = APIRouter(prefix="/schedules", tags=["Schedules"], dependencies=[Depends(require_api_key)])
 
 
 def _require_completed_envelope(request_id: str) -> ScheduleGenerationEnvelopeDTO:
@@ -67,7 +85,7 @@ def run_schedule(payload: ScheduleRunRequestDTO) -> ScheduleRequestAcceptedDTO:
         logger.exception("Unable to submit schedule request")
         raise HTTPException(
             status_code=503,
-            detail=str(exc),
+            detail="Unable to submit schedule request",
         ) from exc
     except Exception as exc:
         logger.exception("Unexpected error while submitting schedule request")

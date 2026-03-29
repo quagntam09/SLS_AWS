@@ -170,7 +170,7 @@ def _best_effort_mark_failed(request_id: str, error: str) -> None:
                     ":p": 100,
                     ":m": "Schedule generation failed",
                     ":e": _truncate_error(error),
-                    ":t": error,
+                    ":t": _truncate_error(error),
                     ":u": _utc_now(),
                 },
             ),
@@ -311,7 +311,6 @@ def get_schedule_progress(request_id: str) -> Optional[Dict[str, Any]]:
         return None
 
     result = None
-    result_error: Optional[str] = None
     result_s3_key = item.get("result_s3_key")
     if _normalize_status(item.get("status", STATUS_PENDING)) == STATUS_COMPLETED and result_s3_key:
         try:
@@ -324,14 +323,10 @@ def get_schedule_progress(request_id: str) -> Optional[Dict[str, Any]]:
             )
             result = json.loads(obj["Body"].read().decode("utf-8"))
         except Exception as exc:
-            result_error = f"Result payload unavailable: {_safe_error_message(exc)}"
-            print(f"[async_schedule_service] {request_id}: {result_error}")
-
-    existing_error = item.get("error")
-    combined_error = existing_error
-    if result_error:
-        combined_error = f"{existing_error}; {result_error}" if existing_error else result_error
-        combined_error = _truncate_error(combined_error)
+            print(
+                f"[async_schedule_service] {request_id}: unable to load completed result payload: "
+                f"{_safe_error_message(exc)}"
+            )
 
     return {
         "request_id": item["request_id"],
@@ -339,5 +334,5 @@ def get_schedule_progress(request_id: str) -> Optional[Dict[str, Any]]:
         "progress_percent": int(item.get("progress_percent", 0)),
         "message": item.get("message", ""),
         "result": result,
-        "error": combined_error,
+        "error": _truncate_error(str(item.get("error") or "")) or None,
     }

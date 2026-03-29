@@ -18,9 +18,7 @@ Hệ thống sinh lịch trực bác sĩ bằng NSGA-II cải tiến. API FastAP
 - DynamoDB lưu trạng thái job, tiến độ, message lỗi, và key trỏ tới kết quả.
 - Fargate + EventBridge Pipes là đường chạy worker chuẩn trong repo.
 
-## Lưu Ý Vận Hành
-
-- API hiện chưa có authentication/authorization. Nếu mở ra ngoài mạng nội bộ, cần đặt lớp bảo vệ phía trước.
+- API mặc định chưa bật authentication/authorization; nếu mở ra ngoài mạng nội bộ thì nên đặt `APP_API_KEY` hoặc lớp bảo vệ phía trước.
 - Kết quả trong DynamoDB/S3 chưa có TTL hay lifecycle policy tự động, nên cần kế hoạch dọn dữ liệu nếu số job tăng.
 - Worker chỉ ghi progress theo chu kỳ `APP_PROGRESS_UPDATE_INTERVAL`; thế hệ cuối luôn cập nhật `100%`.
 - Payload sinh lịch phải hợp lệ theo schema: tối thiểu 12 bác sĩ và `shifts_per_day` hiện được cố định ở `2`.
@@ -78,7 +76,10 @@ APP_PROGRESS_UPDATE_INTERVAL=50
 APP_RANDOMIZATION_STRENGTH=0.08
 APP_RANDOM_SEED=
 APP_CORS_ALLOW_ORIGINS=http://localhost:3000
+APP_API_KEY=
 ```
+
+Nếu `APP_API_KEY` được đặt, toàn bộ endpoint nghiệp vụ dưới `/api/v1/schedules` sẽ yêu cầu header `X-API-Key` khớp giá trị này. Nếu để trống, cơ chế xác thực sẽ tắt để không ảnh hưởng môi trường local.
 
 Luồng async trên AWS cần các biến runtime sau:
 
@@ -139,6 +140,9 @@ Base path hiện tại trên AWS là `/dev`, nên URL thực tế sẽ bao gồm
 
 - Khuyến nghị dùng `deploy/ecs-fargate/README.md` cho mô hình SQS -> EventBridge Pipes -> Fargate worker.
 - Worker entrypoint chạy bằng `python -m server.app.worker` và nhận payload qua `--event`, `--payload`, hoặc `WORKER_EVENT_JSON`.
+- Nếu dùng `deploy-worker.sh`, hãy set trước `AWS_ACCOUNT_ID`, `VPC_ID`, `SUBNET_IDS`, `QUEUE_ARN`, `TABLE_NAME`, và `BUCKET_NAME` trong môi trường shell để tránh hardcode hạ tầng trong script.
+- Cách tiện nhất là tạo file `.deploy-worker.env` ở thư mục gốc repo; script sẽ tự đọc file này nếu tồn tại.
+- Có sẵn file mẫu [`.deploy-worker.env.example`](.deploy-worker.env.example) để copy sang `.deploy-worker.env` rồi điền giá trị thật.
 
 ## Tài Liệu Liên Quan
 

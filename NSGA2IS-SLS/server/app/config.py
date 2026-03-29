@@ -26,6 +26,7 @@ class AppSettings(BaseSettings):
     randomization_strength: float = Field(default=0.08, ge=0.0, le=0.35)
     random_seed: int | None = None
     cors_allow_origins: str = Field(default="http://localhost:3000")
+    api_key: str | None = Field(default=None, description="API key tuy chon de bao ve endpoint nghiep vu")
     env: str = Field(default="development", description="Môi trường chạy app")
 
     def is_dev(self) -> bool:

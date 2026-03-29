@@ -64,6 +64,7 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Ref DlqName
+      SqsManagedSseEnabled: true
 
   WorkerLogGroup:
     Type: AWS::Logs::LogGroup
@@ -168,10 +169,12 @@ Resources:
                 Resource: !Ref QueueArn
               - Effect: Allow
                 Action: [ecs:RunTask]
-                Resource: "*"
+                Resource: !Ref WorkerTaskDefinition
               - Effect: Allow
                 Action: [iam:PassRole]
-                Resource: "*"
+                Resource:
+                  - !GetAtt WorkerExecutionRole.Arn
+                  - !GetAtt WorkerTaskRole.Arn
 
   SqsToFargatePipe:
     Type: AWS::Pipes::Pipe
@@ -184,6 +187,8 @@ Resources:
         EcsTaskParameters:
           TaskDefinitionArn: !Ref WorkerTaskDefinition
           LaunchType: FARGATE
+          PlatformVersion: LATEST
+          EnableExecuteCommand: false
           NetworkConfiguration:
             AwsvpcConfiguration:
               AssignPublicIp: !Ref AssignPublicIp

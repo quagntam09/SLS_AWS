@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 import os
+from urllib.parse import urlparse
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,6 +27,31 @@ def _resolve_root_path() -> str:
         root_path = f"/{root_path}"
     return root_path.rstrip("/") if root_path != "/" else root_path
 
+
+def _resolve_cors_origins() -> list[str]:
+    raw_origins = get_settings().cors_allow_origins
+    origins: list[str] = []
+
+    for origin in raw_origins.split(","):
+        candidate = origin.strip()
+        if not candidate:
+            continue
+        if candidate == "*":
+            raise RuntimeError("APP_CORS_ALLOW_ORIGINS must not contain wildcard '*'")
+
+        parsed = urlparse(candidate)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise RuntimeError(f"Invalid CORS origin: {candidate}")
+        if parsed.path not in {"", "/"} or parsed.params or parsed.query or parsed.fragment:
+            raise RuntimeError(f"CORS origin must not include a path, query, or fragment: {candidate}")
+
+        origins.append(f"{parsed.scheme}://{parsed.netloc}")
+
+    if not origins:
+        raise RuntimeError("APP_CORS_ALLOW_ORIGINS must define at least one valid origin")
+
+    return origins
+
 app = FastAPI(
     title="Doctor Duty Scheduling API",
     description="API lập lịch ca trực bác sĩ bằng NSGA-II cải tiến",
@@ -37,11 +63,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        origin.strip()
-        for origin in get_settings().cors_allow_origins.split(",")
-        if origin.strip()
-    ],
+    allow_origins=_resolve_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -76,7 +98,7 @@ def unhandled_exception_handler(_request, exc: Exception) -> JSONResponse:
     logger.exception("Unhandled application error")
     return JSONResponse(
         status_code=500,
-        content={"message": "Internal Server Error", "detail": str(exc)},
+        content={"message": "Internal Server Error"},
     )
 
 # AWS Lambda entrypoint for API Gateway HTTP API events.

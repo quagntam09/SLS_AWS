@@ -65,6 +65,17 @@ Cần 2 nhóm quyền chính:
 - Nếu bạn muốn, mình có thể convert bộ mẫu này sang CloudFormation hoàn chỉnh hoặc CDK stack tiếp theo.
 - Stack CloudFormation hoàn chỉnh đã có trong [worker-fargate-stack.yaml](worker-fargate-stack.yaml).
 
-## 6. Checklist triển khai đầy đủ
+## 6. Deploy script an toàn hơn
+
+File: [../../deploy-worker.sh](../../deploy-worker.sh)
+
+- Script deploy không còn chứa hardcoded VPC/Subnet/Queue/Table/Bucket nữa.
+- Script có thể tự nạp file `.deploy-worker.env` ở thư mục gốc repo nếu file này tồn tại.
+- Cần truyền các biến môi trường bắt buộc trước khi chạy: `AWS_ACCOUNT_ID`, `VPC_ID`, `SUBNET_IDS`, `QUEUE_ARN`, `TABLE_NAME`, `BUCKET_NAME`.
+- Các biến tùy chọn: `AWS_REGION`, `ECR_REPOSITORY`, `STACK_NAME`, `TEMPLATE_FILE`, `CPU`, `MEMORY`, `ASSIGN_PUBLIC_IP`.
+- `ASSIGN_PUBLIC_IP` nên giữ `DISABLED` nếu môi trường VPC có NAT Gateway hoặc VPC Endpoints.
+- Có thể dùng [`.deploy-worker.env.example`](../../.deploy-worker.env.example) làm template rồi copy sang `.deploy-worker.env`.
+
+## 7. Checklist triển khai đầy đủ
 
 - Xem [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md) để đi theo từng bước: DLQ, CPU/RAM, VPC Endpoints, ECR, CloudFormation, Pipe, test end-to-end.
