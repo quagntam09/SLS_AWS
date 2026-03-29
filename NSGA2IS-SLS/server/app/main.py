@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from mangum import Mangum
 
 from .api.router import api_router
-from .config import get_settings
+from .core.settings import get_settings
 
 logger = logging.getLogger("uvicorn.error")
 

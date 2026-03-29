@@ -10,10 +10,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .application.services.async_schedule_service import mark_completed, mark_failed, mark_running
+from .infrastructure.aws.job_state_store import mark_completed, mark_failed, mark_running
 from .application.use_cases.generate_schedule import GenerateScheduleUseCase
-from .config import get_settings
-from .domain.schemas import ScheduleRunRequestDTO
+from .core.settings import get_settings
+from .domain.dto import ScheduleRunRequestDTO, SchedulingJobRequestDTO
 
 
 REQUEST_ID_ENV_NAMES = ("REQUEST_ID", "WORKER_REQUEST_ID")
@@ -195,6 +195,13 @@ def _normalize_job(event: dict[str, Any], cli_request_id: str | None = None) -> 
     return WorkerJob(request_id=request_id, payload=payload_data)
 
 
+def _parse_schedule_request(payload: dict[str, Any]) -> ScheduleRunRequestDTO | SchedulingJobRequestDTO:
+    if "business_request" in payload and "resolved_config" in payload and "resolved_profile" in payload:
+        return SchedulingJobRequestDTO.model_validate(payload)
+
+    return ScheduleRunRequestDTO.model_validate(payload)
+
+
 def _build_progress_callback(request_id: str, progress_update_interval: int):
     last_progress = 10
 
@@ -222,7 +229,7 @@ def _build_progress_callback(request_id: str, progress_update_interval: int):
 
 def _process_job(job: WorkerJob, progress_update_interval: int) -> None:
     logger.info("Starting job %s", job.request_id)
-    schedule_request = ScheduleRunRequestDTO.model_validate(job.payload)
+    schedule_request = _parse_schedule_request(job.payload)
     mark_running(job.request_id, progress_percent=10, message="Schedule generation is running")
 
     result = GenerateScheduleUseCase().execute(

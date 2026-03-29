@@ -1,0 +1,358 @@
+"""AWS-backed store cho trạng thái job, queue dispatch và kết quả lịch."""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+import uuid
+from datetime import datetime, timezone
+from functools import lru_cache
+from time import sleep
+from typing import Any, Dict, Optional
+
+import boto3
+from botocore.exceptions import (
+    BotoCoreError,
+    ClientError,
+    ConnectionClosedError,
+    EndpointConnectionError,
+    ReadTimeoutError,
+)
+
+
+MAX_RETRIES = 3
+BASE_BACKOFF_SECONDS = 0.25
+MAX_ERROR_LENGTH = 1000
+AWS_REGION_ENV = "AWS_REGION"
+AWS_DEFAULT_REGION_ENV = "AWS_DEFAULT_REGION"
+RETRIABLE_ERROR_CODES = {
+    "InternalError",
+    "InternalFailure",
+    "RequestTimeout",
+    "RequestTimeoutException",
+    "Throttling",
+    "ThrottlingException",
+    "TooManyRequestsException",
+    "ProvisionedThroughputExceededException",
+    "ServiceUnavailable",
+    "SlowDown",
+}
+
+STATUS_PENDING = "queued"
+STATUS_RUNNING = "running"
+STATUS_COMPLETED = "completed"
+STATUS_FAILED = "failed"
+
+logger = logging.getLogger(__name__)
+
+
+def _normalize_status(status: object) -> str:
+    if not isinstance(status, str):
+        return STATUS_PENDING
+
+    normalized = status.strip().upper()
+    aliases = {
+        "QUEUED": STATUS_PENDING,
+        "PENDING": STATUS_PENDING,
+        "RUNNING": STATUS_RUNNING,
+        "COMPLETED": STATUS_COMPLETED,
+        "FAILED": STATUS_FAILED,
+    }
+    return aliases.get(normalized, normalized)
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _required_env(name: str) -> str:
+    value = os.getenv(name)
+    if not value:
+        raise RuntimeError(f"Missing required environment variable: {name}")
+    return value
+
+
+def _aws_region() -> str | None:
+    return os.getenv(AWS_REGION_ENV) or os.getenv(AWS_DEFAULT_REGION_ENV)
+
+
+@lru_cache(maxsize=1)
+def _session():
+    region_name = _aws_region()
+    if region_name:
+        return boto3.session.Session(region_name=region_name)
+    return boto3.session.Session()
+
+
+@lru_cache(maxsize=1)
+def _table():
+    table_name = _required_env("TABLE_NAME")
+    dynamodb = _session().resource("dynamodb")
+    return dynamodb.Table(table_name)
+
+
+@lru_cache(maxsize=1)
+def _sqs_client():
+    return _session().client("sqs")
+
+
+@lru_cache(maxsize=1)
+def _s3_client():
+    return _session().client("s3")
+
+
+def _queue_url() -> str:
+    return _required_env("QUEUE_URL")
+
+
+def _bucket_name() -> str:
+    return _required_env("BUCKET_NAME")
+
+
+def _result_s3_key(request_id: str) -> str:
+    return f"results/{request_id}.json"
+
+
+def _result_s3_url(bucket_name: str, s3_key: str) -> str:
+    return f"s3://{bucket_name}/{s3_key}"
+
+
+def _truncate_error(error: str) -> str:
+    if len(error) <= MAX_ERROR_LENGTH:
+        return error
+    return error[: MAX_ERROR_LENGTH - 3] + "..."
+
+
+def _safe_error_message(exc: Exception) -> str:
+    message = str(exc) or exc.__class__.__name__
+    return _truncate_error(message)
+
+
+def _public_failure_message(message: str, fallback: str) -> str:
+    text = (message or "").strip()
+    if not text:
+        return fallback
+
+    if ":" in text:
+        text = text.split(":", 1)[0].strip()
+
+    return text or fallback
+
+
+def _is_retriable_client_error(exc: ClientError) -> bool:
+    code = exc.response.get("Error", {}).get("Code", "")
+    return code in RETRIABLE_ERROR_CODES
+
+
+def _is_retriable_exception(exc: Exception) -> bool:
+    if isinstance(exc, (EndpointConnectionError, ConnectionClosedError, ReadTimeoutError)):
+        return True
+    if isinstance(exc, ClientError):
+        return _is_retriable_client_error(exc)
+    return False
+
+
+def _with_retries(operation_name: str, fn):
+    last_exc: Optional[Exception] = None
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            return fn()
+        except (ClientError, BotoCoreError) as exc:
+            last_exc = exc
+            if attempt >= MAX_RETRIES or not _is_retriable_exception(exc):
+                break
+            sleep(BASE_BACKOFF_SECONDS * (2 ** (attempt - 1)))
+
+    assert last_exc is not None
+    raise RuntimeError(f"{operation_name} failed: {_safe_error_message(last_exc)}") from last_exc
+
+
+def _best_effort_mark_failed(request_id: str, error: str) -> None:
+    public_error = _public_failure_message(error, "Schedule generation failed")
+    try:
+        _with_retries(
+            "DynamoDB update_item (mark failed)",
+            lambda: _table().update_item(
+                Key={"request_id": request_id},
+                UpdateExpression=(
+                    "SET #s = :s, progress_percent = :p, #m = :m, #e = :e, #t = :t, updated_at = :u"
+                ),
+                ExpressionAttributeNames={
+                    "#s": "status",
+                    "#m": "message",
+                    "#e": "error",
+                    "#t": "traceback",
+                },
+                ExpressionAttributeValues={
+                    ":s": STATUS_FAILED,
+                    ":p": 100,
+                    ":m": "Schedule generation failed",
+                    ":e": public_error,
+                    ":t": None,
+                    ":u": _utc_now(),
+                },
+            ),
+        )
+    except Exception as exc:
+        print(
+            f"[job_state_store] Unable to persist failed status for {request_id}: "
+            f"{_safe_error_message(exc)}"
+        )
+
+
+def create_schedule_request(payload: Dict[str, Any]) -> Dict[str, Any]:
+    request_id = f"req_{uuid.uuid4().hex[:12]}"
+    now = _utc_now()
+
+    item = {
+        "request_id": request_id,
+        "status": STATUS_PENDING,
+        "progress_percent": 0,
+        "message": "Request accepted and queued for processing",
+        "created_at": now,
+        "updated_at": now,
+        "error": None,
+        "traceback": None,
+        "result_s3_key": None,
+        "result_url": None,
+    }
+    _with_retries(
+        "DynamoDB put_item",
+        lambda: _table().put_item(
+            Item=item,
+            ConditionExpression="attribute_not_exists(request_id)",
+        ),
+    )
+
+    try:
+        _with_retries(
+            "SQS send_message",
+            lambda: _sqs_client().send_message(
+                QueueUrl=_queue_url(),
+                MessageBody=json.dumps(
+                    {
+                        "request_id": request_id,
+                        "payload": payload,
+                    }
+                ),
+            ),
+        )
+    except Exception:
+        logger.exception("Queue dispatch failed for %s", request_id)
+        _best_effort_mark_failed(request_id, "Queue dispatch failed")
+        raise
+
+    return {
+        "request_id": request_id,
+        "status": STATUS_PENDING,
+        "progress_percent": 0,
+        "message": "Schedule generation request accepted",
+    }
+
+
+def mark_running(
+    request_id: str,
+    progress_percent: int = 10,
+    message: str = "Schedule generation is running",
+) -> None:
+    _with_retries(
+        "DynamoDB update_item (mark running)",
+        lambda: _table().update_item(
+            Key={"request_id": request_id},
+            UpdateExpression="SET #s = :s, progress_percent = :p, #m = :m, updated_at = :u",
+            ConditionExpression="attribute_exists(request_id)",
+            ExpressionAttributeNames={"#s": "status", "#m": "message"},
+            ExpressionAttributeValues={
+                ":s": STATUS_RUNNING,
+                ":p": progress_percent,
+                ":m": message,
+                ":u": _utc_now(),
+            },
+        ),
+    )
+
+
+def mark_completed(request_id: str, result: Dict[str, Any]) -> None:
+    bucket_name = _bucket_name()
+    s3_key = _result_s3_key(request_id)
+    result_url = _result_s3_url(bucket_name, s3_key)
+
+    _with_retries(
+        "S3 put_object",
+        lambda: _s3_client().put_object(
+            Bucket=bucket_name,
+            Key=s3_key,
+            Body=json.dumps(result).encode("utf-8"),
+            ContentType="application/json",
+        ),
+    )
+
+    _with_retries(
+        "DynamoDB update_item (mark completed)",
+        lambda: _table().update_item(
+            Key={"request_id": request_id},
+            UpdateExpression=(
+                "SET #s = :s, progress_percent = :p, #m = :m, "
+                "result_s3_key = :k, result_url = :r, updated_at = :u, #e = :e, #t = :t"
+            ),
+            ConditionExpression="attribute_exists(request_id)",
+            ExpressionAttributeNames={
+                "#s": "status",
+                "#m": "message",
+                "#e": "error",
+                "#t": "traceback",
+            },
+            ExpressionAttributeValues={
+                ":s": STATUS_COMPLETED,
+                ":p": 100,
+                ":m": "Schedule generation completed successfully",
+                ":k": s3_key,
+                ":r": result_url,
+                ":u": _utc_now(),
+                ":e": None,
+                ":t": None,
+            },
+        ),
+    )
+
+
+def mark_failed(request_id: str, error: str) -> None:
+    _best_effort_mark_failed(request_id, error)
+
+
+def get_schedule_progress(request_id: str) -> Optional[Dict[str, Any]]:
+    response = _with_retries(
+        "DynamoDB get_item",
+        lambda: _table().get_item(Key={"request_id": request_id}),
+    )
+    item = response.get("Item")
+    if not item:
+        return None
+
+    result = None
+    result_s3_key = item.get("result_s3_key")
+    if _normalize_status(item.get("status", STATUS_PENDING)) == STATUS_COMPLETED and result_s3_key:
+        try:
+            obj = _with_retries(
+                "S3 get_object",
+                lambda: _s3_client().get_object(
+                    Bucket=_bucket_name(),
+                    Key=str(result_s3_key),
+                ),
+            )
+            result = json.loads(obj["Body"].read().decode("utf-8"))
+        except Exception as exc:
+            print(
+                f"[job_state_store] {request_id}: unable to load completed result payload: "
+                f"{_safe_error_message(exc)}"
+            )
+
+    return {
+        "request_id": item["request_id"],
+        "status": _normalize_status(item.get("status", STATUS_PENDING)),
+        "progress_percent": int(item.get("progress_percent", 0)),
+        "message": item.get("message", ""),
+        "result": result,
+        "error": _truncate_error(str(item.get("error") or "")) or None,
+    }

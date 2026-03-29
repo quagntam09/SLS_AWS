@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from ...domain.schemas import (
+from ...domain.dto import (
     ParetoScheduleAssignmentsDTO,
     ParetoScheduleMetricsItemDTO,
     ScheduleGenerationEnvelopeDTO,
+    ScheduleJobDetailDTO,
     ScheduleJobMetricsResponseDTO,
     ScheduleJobScheduleResponseDTO,
     ScheduleSliceDTO,
@@ -52,4 +53,22 @@ def build_metrics_response(
             ParetoScheduleMetricsItemDTO(option_id=opt.option_id, metrics=opt.metrics)
             for opt in envelope.pareto_options
         ],
+    )
+
+
+def build_job_detail_response(
+    request_id: str,
+    status: str,
+    progress_percent: int,
+    message: str,
+    error: str | None = None,
+    envelope: ScheduleGenerationEnvelopeDTO | None = None,
+) -> ScheduleJobDetailDTO:
+    return ScheduleJobDetailDTO(
+        request_id=request_id,
+        status=status,
+        progress_percent=progress_percent,
+        message=message,
+        error=error,
+        result=envelope,
     )

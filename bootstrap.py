@@ -4,10 +4,15 @@ import sys
 from pathlib import Path
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent / "NSGA2IS-SLS"
-PROJECT_ROOT_STR = str(PROJECT_ROOT)
+REPO_ROOT = Path(__file__).resolve().parent
+PACKAGE_ROOT_CANDIDATES = (
+    REPO_ROOT / "NSGA2IS-SLS",
+    REPO_ROOT,
+)
 
-if PROJECT_ROOT_STR not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT_STR)
+for candidate in PACKAGE_ROOT_CANDIDATES:
+    candidate_str = str(candidate)
+    if candidate_str not in sys.path:
+        sys.path.insert(0, candidate_str)
 
 from server.app.main import handler  # noqa: E402

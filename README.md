@@ -29,11 +29,13 @@ Hệ thống sinh lịch trực bác sĩ bằng NSGA-II cải tiến. API FastAP
 NSGA2IS-SLS/
 ├── server/
 │   ├── app/
-│   │   ├── main.py
-│   │   ├── worker.py
+│   │   ├── core/
 │   │   ├── api/
 │   │   ├── application/
-│   │   └── domain/
+│   │   ├── domain/
+│   │   ├── infrastructure/
+│   │   ├── main.py
+│   │   └── worker.py
 │   └── nsga2_improved/
 ├── deploy/
 ├── API.md
@@ -65,7 +67,7 @@ npm install
 
 ## Cấu Hình Môi Trường
 
-Tạo file `.env` ở thư mục gốc khi chạy local. Các biến `APP_*` được đọc bởi `server/app/config.py`:
+Tạo file `.env` ở thư mục gốc khi chạy local. Các biến `APP_*` được đọc bởi `server/app/core/settings.py`:
 
 ```bash
 APP_ENV=development
@@ -105,7 +107,7 @@ Trong `serverless.yml`, các biến AWS này được inject cho Lambda; worker 
 
 `ROOT_PATH=/dev` được dùng cho Lambda/API Gateway hiện tại; nếu đổi stage hay prefix, cần đồng bộ trong `serverless.yml` và `server/app/main.py`.
 
-Khi chạy local, nhớ thực hiện từ bên trong thư mục `NSGA2IS-SLS/` vì code application nằm dưới package đó.
+Khi chạy local, có thể chạy từ bên trong `NSGA2IS-SLS/` như hiện tại, hoặc từ repo root nếu đã set `PYTHONPATH` trỏ vào package tương ứng.
 
 ## Chạy Local
 

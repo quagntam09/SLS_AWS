@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -31,13 +31,20 @@ class ScheduleGenerationRequestDTO(BaseModel):
     max_days_off_per_doctor: int = Field(default=5, ge=0, le=14)
     rooms_per_shift: int = Field(default=1, ge=1, le=10, description="Số phòng khám hoạt động mỗi ca")
     doctors_per_room: int = Field(default=5, ge=1, le=15, description="Số bác sĩ yêu cầu mỗi phòng")
-    shifts_per_day: int = Field(default=2, ge=2, le=2)
+    shifts_per_day: int = Field(default=2, ge=1, le=2)
     doctors: List[DoctorProfileDTO] = Field(min_length=12)
     random_seed: Optional[int] = Field(default=None)
     randomization_strength: float = Field(default=0.08, ge=0.0, le=0.35)
     optimizer_population_size: int = Field(default=250, ge=50, le=500)
     optimizer_generations: int = Field(default=400, ge=50, le=800)
     pareto_options_limit: int = Field(default=6, ge=2, le=12)
+    schedule_type: str = Field(default="legacy")
+    profile_id: Optional[str] = None
+    tenant_id: Optional[str] = None
+    department_id: Optional[str] = None
+    response_profile: str = Field(default="legacy")
+    business_constraints: Dict[str, Any] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("doctors")
     @classmethod
@@ -68,8 +75,20 @@ class ScheduleRunRequestDTO(BaseModel):
     max_days_off_per_doctor: int = Field(default=5, ge=0, le=14)
     rooms_per_shift: int = Field(default=1, ge=1, le=10, description="Số phòng khám hoạt động mỗi ca")
     doctors_per_room: int = Field(default=5, ge=1, le=15, description="Số bác sĩ yêu cầu mỗi phòng")
-    shifts_per_day: int = Field(default=2, ge=2, le=2)
+    shifts_per_day: int = Field(default=2, ge=1, le=2)
     doctors: List[DoctorProfileDTO] = Field(min_length=12)
+    schedule_type: str = Field(default="legacy")
+    profile_id: Optional[str] = None
+    tenant_id: Optional[str] = None
+    department_id: Optional[str] = None
+    response_profile: str = Field(default="legacy")
+    optimizer_population_size: Optional[int] = Field(default=None, ge=50, le=500)
+    optimizer_generations: Optional[int] = Field(default=None, ge=50, le=800)
+    random_seed: Optional[int] = None
+    randomization_strength: Optional[float] = Field(default=None, ge=0.0, le=0.35)
+    pareto_options_limit: Optional[int] = Field(default=None, ge=2, le=12)
+    business_constraints: Dict[str, Any] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("doctors")
     @classmethod
@@ -200,6 +219,104 @@ class ScheduleGenerationEnvelopeDTO(BaseModel):
     )
 
 
+class SchedulingOptimizerConfigDTO(BaseModel):
+    """Cấu hình tối ưu hóa đã được chuẩn hóa sau khi merge request/profile/default."""
+
+    population_size: int = Field(default=250, ge=50, le=500)
+    generations: int = Field(default=400, ge=50, le=800)
+    random_seed: Optional[int] = None
+    randomization_strength: float = Field(default=0.08, ge=0.0, le=0.35)
+    pareto_options_limit: int = Field(default=6, ge=2, le=12)
+
+
+class SchedulingProfileDTO(BaseModel):
+    """Profile xếp lịch dùng để áp dụng rule, response profile và cấu hình mặc định."""
+
+    profile_id: str
+    schedule_type: str = Field(default="legacy")
+    profile_version: str = Field(default="1.0.0")
+    rule_version: str = Field(default="1.0.0")
+    description: str = Field(default="")
+    response_profile: str = Field(default="legacy")
+    optimizer_population_size: int = Field(default=250, ge=50, le=500)
+    optimizer_generations: int = Field(default=400, ge=50, le=800)
+    random_seed: Optional[int] = None
+    randomization_strength: float = Field(default=0.08, ge=0.0, le=0.35)
+    pareto_options_limit: int = Field(default=6, ge=2, le=12)
+    allowed_override_fields: List[str] = Field(default_factory=list)
+    locked_fields: List[str] = Field(default_factory=list)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ScheduleProfileUpdateDTO(BaseModel):
+    """Payload cập nhật một phần profile xếp lịch."""
+
+    schedule_type: Optional[str] = None
+    profile_version: Optional[str] = None
+    rule_version: Optional[str] = None
+    description: Optional[str] = None
+    response_profile: Optional[str] = None
+    optimizer_population_size: Optional[int] = Field(default=None, ge=50, le=500)
+    optimizer_generations: Optional[int] = Field(default=None, ge=50, le=800)
+    random_seed: Optional[int] = None
+    randomization_strength: Optional[float] = Field(default=None, ge=0.0, le=0.35)
+    pareto_options_limit: Optional[int] = Field(default=None, ge=2, le=12)
+    allowed_override_fields: Optional[List[str]] = None
+    locked_fields: Optional[List[str]] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class SchedulingResolvedConfigDTO(BaseModel):
+    """Cấu hình cuối cùng sau khi merge request, profile và default server."""
+
+    schedule_type: str = Field(default="legacy")
+    profile_id: Optional[str] = None
+    profile_version: Optional[str] = None
+    rule_version: Optional[str] = None
+    response_profile: str = Field(default="legacy")
+    optimizer: SchedulingOptimizerConfigDTO = Field(default_factory=SchedulingOptimizerConfigDTO)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    business_constraints: Dict[str, Any] = Field(default_factory=dict)
+
+
+class SchedulingJobRequestDTO(BaseModel):
+    """DTO nội bộ chung dùng để queue, worker và use case cùng tiêu thụ."""
+
+    request_id: Optional[str] = None
+    schedule_type: str = Field(default="legacy")
+    profile_id: Optional[str] = None
+    tenant_id: Optional[str] = None
+    department_id: Optional[str] = None
+    response_profile: str = Field(default="legacy")
+    business_request: ScheduleRunRequestDTO
+    resolved_profile: SchedulingProfileDTO
+    resolved_config: SchedulingResolvedConfigDTO
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class SchedulingExecutionContextDTO(BaseModel):
+    """Ngữ cảnh thực thi chuẩn hóa cho một job xếp lịch."""
+
+    request_id: str
+    schedule_type: str = Field(default="legacy")
+    profile_id: Optional[str] = None
+    tenant_id: Optional[str] = None
+    department_id: Optional[str] = None
+    response_profile: str = Field(default="legacy")
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ScheduleJobDetailDTO(BaseModel):
+    """Trạng thái job kèm kết quả nếu job đã hoàn tất."""
+
+    request_id: str
+    status: Literal["queued", "running", "completed", "failed"]
+    progress_percent: int = Field(ge=0, le=100)
+    message: str
+    error: Optional[str] = None
+    result: Optional[ScheduleGenerationEnvelopeDTO] = None
+
+
 class ScheduleSliceDTO(BaseModel):
     """Một lịch trực thuần phân công (không kèm chỉ số chất lượng)."""
 
@@ -250,6 +367,9 @@ class ScheduleRequestAcceptedDTO(BaseModel):
     status: Literal["queued", "running", "completed", "failed"]
     progress_percent: int = Field(ge=0, le=100)
     message: str
+    schedule_type: Optional[str] = None
+    profile_id: Optional[str] = None
+    response_profile: Optional[str] = None
 
 
 class ScheduleJobStatusDTO(BaseModel):

@@ -12,8 +12,14 @@ from dataclasses import dataclass
 import numpy as np
 
 from ...nsga2_improved import NSGA2ImprovedSmart, ProblemWrapper
+from .scheduling_constraints import (
+    SHIFT_HOURS as SC_SHIFT_HOURS,
+    SHIFT_NAMES as SC_SHIFT_NAMES,
+    HardConstraintManager as SchedulerHardConstraintManager,
+    _validate_hard_constraints as validate_hard_constraints,
+)
 
-from .schemas import (
+from .dto import (
     AlgorithmRunMetricsDTO,
     DoctorWorkloadBalanceDTO,
     ParetoScheduleOptionDTO,
@@ -491,9 +497,9 @@ class DutySchedulingProblem:
         self.request = request
         self.doctors = request.doctors
         self.n_doctors = len(self.doctors)
-        self.shift_names = SHIFT_NAMES[:request.shifts_per_day]
+        self.shift_names = SC_SHIFT_NAMES[:request.shifts_per_day]
         self.n_shifts = len(self.shift_names)
-        self.shift_hours = SHIFT_HOURS
+        self.shift_hours = SC_SHIFT_HOURS
         self.rooms = request.rooms_per_shift
         self.dproom = request.doctors_per_room
         self.n_days = request.num_days
@@ -510,7 +516,7 @@ class DutySchedulingProblem:
         self.doctor_id_to_idx = {d.id: idx for idx, d in enumerate(self.doctors)}
         
         # Initialize constraint manager
-        self.constraint_manager = HardConstraintManager(request)
+        self.constraint_manager = SchedulerHardConstraintManager(request)
         
         # Preferred days
         period_start = request.start_date
@@ -929,7 +935,7 @@ class NsgaDutySchedulerService:
     ) -> ScheduleGenerationEnvelopeDTO:
         """Generate optimized schedule."""
         # Step 1: Validate all hard constraints
-        _validate_hard_constraints(request)
+        validate_hard_constraints(request)
         
         # Step 2: Initialize problem and solver
         problem = DutySchedulingProblem(request)
@@ -939,7 +945,7 @@ class NsgaDutySchedulerService:
             pop_size=getattr(request, 'optimizer_population_size', 250),
             n_gen=getattr(request, 'optimizer_generations', 400),
         )
-        
+            
         # Step 3: Run optimization
         t0 = time.perf_counter()
         solver.run(progress_callback=progress_callback)

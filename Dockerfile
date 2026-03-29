@@ -1,10 +1,12 @@
 FROM python:3.10-slim
 
+# Cho phép đổi thư mục source mà không phải sửa lệnh copy / PYTHONPATH trong nhiều chỗ.
+ARG SOURCE_DIR=NSGA2IS-SLS
+
 # Ngăn Python tạo file .pyc và ép log đẩy thẳng ra console
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    # CHỈNH SỬA TẠI ĐÂY: Thêm đường dẫn chứa module nsga2_improved vào PATH
-    PYTHONPATH=/app/NSGA2IS-SLS
+    PYTHONPATH=/app/${SOURCE_DIR}:/app
 
 WORKDIR /app
 
@@ -13,10 +15,10 @@ COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
 # Copy mã nguồn vào container
-COPY NSGA2IS-SLS /app/NSGA2IS-SLS
+COPY ${SOURCE_DIR} /app/${SOURCE_DIR}
 
 # Thiết lập thư mục làm việc chính
-WORKDIR /app/NSGA2IS-SLS
+WORKDIR /app/${SOURCE_DIR}
 
 # Chạy worker dưới dạng module
 CMD ["python", "-m", "server.app.worker"]
