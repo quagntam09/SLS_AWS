@@ -19,6 +19,12 @@ from .config import get_settings
 logger = logging.getLogger("uvicorn.error")
 
 
+def _validate_security_posture() -> None:
+    settings = get_settings()
+    if settings.requires_api_key() and not settings.get_api_key():
+        raise RuntimeError("APP_API_KEY must be set when APP_ENV is not development/local")
+
+
 def _resolve_root_path() -> str:
     root_path = os.getenv("ROOT_PATH", "").strip()
     if not root_path:
@@ -60,6 +66,8 @@ app = FastAPI(
     redoc_url="/redoc",
     root_path=_resolve_root_path(),
 )
+
+_validate_security_posture()
 
 app.add_middleware(
     CORSMiddleware,

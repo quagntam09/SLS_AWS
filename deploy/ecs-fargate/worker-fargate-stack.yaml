@@ -194,6 +194,7 @@ Resources:
               AssignPublicIp: !Ref AssignPublicIp
               Subnets: !Ref SubnetIds
               SecurityGroups: [!Ref WorkerSecurityGroup]
+              AssignPublicIp: ENABLED
           Overrides:
             ContainerOverrides:
               - Name: nsga2-worker

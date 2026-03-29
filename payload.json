@@ -1,70 +1,60 @@
 {
   "start_date": "2026-04-01",
-  "num_days": 30,
+  "num_days": 7,
   "max_weekly_hours_per_doctor": 48,
   "max_days_off_per_doctor": 2,
-  "rooms_per_shift": 2,
-  "doctors_per_room": 6,
+  "rooms_per_shift": 1,
+  "doctors_per_room": 5,
   "shifts_per_day": 2,
   "doctors": [
     {
       "id": "DOC-0001",
-      "name": "Bác sĩ Nguyễn Văn",
-      "experiences": 0,
+      "name": "Bác sĩ Nguyễn An",
+      "experiences": 12,
       "department_id": "NỘI-01",
       "specialization": "Nội tổng quát",
-      "days_off": [
-        "2026-04-01"
-      ],
-      "preferred_extra_days": [
-        "2026-04-10"
-      ],
-      "has_valid_license": false,
-      "is_intern": true
-    },
-    {
-      "id": "DOC-0002",
-      "name": "Bác sĩ Trần Thị",
-      "experiences": 18,
-      "department_id": "NGOẠI-01",
-      "specialization": "Ngoại tổng quát",
-      "days_off": [
-        "2026-04-14"
-      ],
-      "preferred_extra_days": [
-        "2026-04-01"
-      ],
+      "days_off": ["2026-04-03"],
+      "preferred_extra_days": ["2026-04-06"],
       "has_valid_license": true,
       "is_intern": false
     },
     {
-      "id": "DOC-0003",
-      "name": "Bác sĩ Lê Hữu",
-      "experiences": 27.5,
-      "department_id": "NHI-01",
-      "specialization": "Nhi khoa",
+      "id": "DOC-0002",
+      "name": "Bác sĩ Trần Bình",
+      "experiences": 8.5,
+      "department_id": "NGOẠI-01",
+      "specialization": "Ngoại tổng quát",
       "days_off": [],
       "preferred_extra_days": [],
       "has_valid_license": true,
       "is_intern": false
     },
     {
-      "id": "DOC-0004",
-      "name": "Bác sĩ Phạm Minh",
-      "experiences": 26,
-      "department_id": "SẢN-01",
-      "specialization": "Sản phụ khoa",
-      "days_off": [
-        "2026-04-18"
-      ],
+      "id": "DOC-0003",
+      "name": "Bác sĩ Lê Chi",
+      "experiences": 15,
+      "department_id": "NHI-01",
+      "specialization": "Nhi khoa",
+      "days_off": ["2026-04-05"],
       "preferred_extra_days": [],
       "has_valid_license": true,
       "is_intern": false
     },
     {
+      "id": "DOC-0004",
+      "name": "Bác sĩ Phạm Dũng",
+      "experiences": 20,
+      "department_id": "SẢN-01",
+      "specialization": "Sản phụ khoa",
+      "days_off": [],
+      "preferred_extra_days": ["2026-04-02"],
+      "has_valid_license": true,
+      "is_intern": false
+    },
+    {
       "id": "DOC-0005",
-      "name": "Bác sĩ Hoàng Thanh",
-      "experiences": 25,
+      "name": "Bác sĩ Hoàng Em",
+      "experiences": 18,
       "department_id": "CẤP CỨU-01",
       "specialization": "Cấp cứu",
       "days_off": [],
@@ -74,24 +64,22 @@
     },
     {
       "id": "DOC-0006",
-      "name": "Bác sĩ Vũ Thu",
-      "experiences": 7,
+      "name": "Bác sĩ Vũ Hà",
+      "experiences": 6,
       "department_id": "HSTC-01",
       "specialization": "Hồi sức tích cực",
-      "days_off": [],
+      "days_off": ["2026-04-07"],
       "preferred_extra_days": [],
       "has_valid_license": true,
       "is_intern": false
     },
     {
       "id": "DOC-0007",
-      "name": "Bác sĩ Đặng Hà",
-      "experiences": 17.5,
+      "name": "Bác sĩ Đặng Khoa",
+      "experiences": 14,
       "department_id": "CTCH-01",
       "specialization": "Chấn thương chỉnh hình",
-      "days_off": [
-        "2026-04-27"
-      ],
+      "days_off": [],
       "preferred_extra_days": [],
       "has_valid_license": true,
       "is_intern": false
@@ -103,19 +91,17 @@
       "department_id": "TMH-01",
       "specialization": "Tai mũi họng",
       "days_off": [],
-      "preferred_extra_days": [],
+      "preferred_extra_days": ["2026-04-04"],
       "has_valid_license": true,
       "is_intern": false
     },
     {
       "id": "DOC-0009",
-      "name": "Bác sĩ Đỗ Hùng",
-      "experiences": 18.5,
+      "name": "Bác sĩ Đỗ Minh",
+      "experiences": 11,
       "department_id": "MẮT-01",
       "specialization": "Mắt",
-      "days_off": [
-        "2026-04-05"
-      ],
+      "days_off": ["2026-04-06"],
       "preferred_extra_days": [],
       "has_valid_license": true,
       "is_intern": false
@@ -123,7 +109,7 @@
     {
       "id": "DOC-0010",
       "name": "Bác sĩ Hồ Cường",
-      "experiences": 19.5,
+      "experiences": 9,
       "department_id": "RHM-01",
       "specialization": "Răng hàm mặt",
       "days_off": [],
@@ -133,76 +119,22 @@
     },
     {
       "id": "DOC-0011",
-      "name": "Bác sĩ Nguyễn Văn",
-      "experiences": 1,
+      "name": "Bác sĩ Nguyễn Đan",
+      "experiences": 2,
       "department_id": "DA-01",
       "specialization": "Da liễu",
-      "days_off": [
-        "2026-04-25"
-      ],
+      "days_off": [],
       "preferred_extra_days": [],
       "has_valid_license": true,
       "is_intern": true
     },
     {
       "id": "DOC-0012",
-      "name": "Bác sĩ Trần Thị",
-      "experiences": 17,
+      "name": "Bác sĩ Trần Hòa",
+      "experiences": 13,
       "department_id": "TÂM THẦN-01",
       "specialization": "Tâm thần",
-      "days_off": [],
-      "preferred_extra_days": [],
-      "has_valid_license": true,
-      "is_intern": false
-    },
-    {
-      "id": "DOC-0013",
-      "name": "Bác sĩ Lê Hữu",
-      "experiences": 28,
-      "department_id": "LÃO-01",
-      "specialization": "Lão khoa",
-      "days_off": [
-        "2026-04-13"
-      ],
-      "preferred_extra_days": [
-        "2026-04-22"
-      ],
-      "has_valid_license": true,
-      "is_intern": false
-    },
-    {
-      "id": "DOC-0014",
-      "name": "Bác sĩ Phạm Minh",
-      "experiences": 16,
-      "department_id": "NỘI-01",
-      "specialization": "Nội tổng quát",
-      "days_off": [],
-      "preferred_extra_days": [],
-      "has_valid_license": true,
-      "is_intern": false
-    },
-    {
-      "id": "DOC-0015",
-      "name": "Bác sĩ Hoàng Thanh",
-      "experiences": 5,
-      "department_id": "NGOẠI-01",
-      "specialization": "Ngoại tổng quát",
-      "days_off": [],
-      "preferred_extra_days": [
-        "2026-04-14"
-      ],
-      "has_valid_license": true,
-      "is_intern": false
-    },
-    {
-      "id": "DOC-0016",
-      "name": "Bác sĩ Vũ Thu",
-      "experiences": 7,
-      "department_id": "NHI-01",
-      "specialization": "Nhi khoa",
-      "days_off": [
-        "2026-04-18"
-      ],
+      "days_off": ["2026-04-08"],
       "preferred_extra_days": [],
       "has_valid_license": true,
       "is_intern": false

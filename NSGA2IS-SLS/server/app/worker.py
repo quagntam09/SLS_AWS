@@ -255,7 +255,7 @@ def main(argv: list[str] | None = None) -> None:
 
         if job_request_id:
             try:
-                mark_failed(job_request_id, f"{exc.__class__.__name__}: {exc}")
+                mark_failed(job_request_id, "Worker task failed")
             except Exception:
                 logger.exception("Unable to persist failure state for %s", job_request_id)
 

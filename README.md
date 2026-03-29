@@ -18,7 +18,7 @@ Hệ thống sinh lịch trực bác sĩ bằng NSGA-II cải tiến. API FastAP
 - DynamoDB lưu trạng thái job, tiến độ, message lỗi, và key trỏ tới kết quả.
 - Fargate + EventBridge Pipes là đường chạy worker chuẩn trong repo.
 
-- API mặc định chưa bật authentication/authorization; nếu mở ra ngoài mạng nội bộ thì nên đặt `APP_API_KEY` hoặc lớp bảo vệ phía trước.
+- API mặc định chưa bật authentication/authorization trong môi trường local. Ở `APP_ENV` khác `development/local`, hệ thống yêu cầu `APP_API_KEY`; nếu thiếu, ứng dụng sẽ không khởi động để tránh deploy nhầm API công khai.
 - Kết quả trong DynamoDB/S3 chưa có TTL hay lifecycle policy tự động, nên cần kế hoạch dọn dữ liệu nếu số job tăng.
 - Worker chỉ ghi progress theo chu kỳ `APP_PROGRESS_UPDATE_INTERVAL`; thế hệ cuối luôn cập nhật `100%`.
 - Payload sinh lịch phải hợp lệ theo schema: tối thiểu 12 bác sĩ và `shifts_per_day` hiện được cố định ở `2`.

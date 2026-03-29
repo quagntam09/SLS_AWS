@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import uuid
 from datetime import datetime, timezone
@@ -38,6 +39,8 @@ STATUS_PENDING = "queued"
 STATUS_RUNNING = "running"
 STATUS_COMPLETED = "completed"
 STATUS_FAILED = "failed"
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_status(status: object) -> str:
@@ -122,6 +125,17 @@ def _safe_error_message(exc: Exception) -> str:
     return _truncate_error(message)
 
 
+def _public_failure_message(message: str, fallback: str) -> str:
+    text = (message or "").strip()
+    if not text:
+        return fallback
+
+    if ":" in text:
+        text = text.split(":", 1)[0].strip()
+
+    return text or fallback
+
+
 def _is_retriable_client_error(exc: ClientError) -> bool:
     code = exc.response.get("Error", {}).get("Code", "")
     return code in RETRIABLE_ERROR_CODES
@@ -151,6 +165,7 @@ def _with_retries(operation_name: str, fn):
 
 
 def _best_effort_mark_failed(request_id: str, error: str) -> None:
+    public_error = _public_failure_message(error, "Schedule generation failed")
     try:
         _with_retries(
             "DynamoDB update_item (mark failed)",
@@ -169,8 +184,8 @@ def _best_effort_mark_failed(request_id: str, error: str) -> None:
                     ":s": STATUS_FAILED,
                     ":p": 100,
                     ":m": "Schedule generation failed",
-                    ":e": _truncate_error(error),
-                    ":t": _truncate_error(error),
+                    ":e": public_error,
+                    ":t": None,
                     ":u": _utc_now(),
                 },
             ),
@@ -219,8 +234,9 @@ def create_schedule_request(payload: Dict[str, Any]) -> Dict[str, Any]:
                 ),
             ),
         )
-    except Exception as exc:
-        _best_effort_mark_failed(request_id, f"Queue dispatch failed: {_safe_error_message(exc)}")
+    except Exception:
+        logger.exception("Queue dispatch failed for %s", request_id)
+        _best_effort_mark_failed(request_id, "Queue dispatch failed")
         raise
 
     return {

@@ -32,6 +32,13 @@ class AppSettings(BaseSettings):
     def is_dev(self) -> bool:
         return self.env.lower() in {"dev", "development", "local"}
 
+    def requires_api_key(self) -> bool:
+        return not self.is_dev()
+
+    def get_api_key(self) -> str | None:
+        value = (self.api_key or "").strip()
+        return value or None
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> AppSettings:

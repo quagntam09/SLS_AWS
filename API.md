@@ -11,7 +11,7 @@ Tài liệu tham chiếu cho API lập lịch ca trực. Luồng thực tế là
 
 ## Authentication
 
-Không có lớp auth trong code hiện tại. Nếu deploy ra môi trường không tin cậy, cần thêm auth hoặc lớp bảo vệ ở phía trước.
+Auth API key là tuỳ chọn trong local, nhưng trong môi trường non-dev hệ thống yêu cầu `APP_API_KEY` để tránh mở endpoint công khai.
 
 ## 1. POST /api/v1/schedules/run
 
