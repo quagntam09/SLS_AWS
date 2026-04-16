@@ -4,6 +4,7 @@ Vòng lặp tiến hoá chính của NSGA-II cải tiến.
 
 from __future__ import annotations
 
+import logging
 from typing import Callable, List, Optional
 
 import numpy as np
@@ -20,6 +21,8 @@ from .operators import (
     tournament_selection,
 )
 from .selection import environmental_selection, remove_duplicates
+
+logger = logging.getLogger(__name__)
 
 
 class NSGA2ImprovedSmart:
@@ -152,6 +155,11 @@ class NSGA2ImprovedSmart:
 
     def _partial_restart(self) -> None:
         n_keep = int(self.pop_size * self.restart_elite_ratio)
+        logger.info(
+            "Stagnation detected; partial restart — keeping top %d individuals (%d%%).",
+            n_keep,
+            int(self.restart_elite_ratio * 100),
+        )
         elite = self.population[:n_keep]
 
         n_new = self.pop_size - n_keep
@@ -185,6 +193,9 @@ class NSGA2ImprovedSmart:
         if successful_de:
             f_values = np.array([ind.used_F for ind in successful_de])
             cr_values = np.array([ind.used_CR for ind in successful_de])
-            lehmer_mean_F = float(np.mean(f_values**2) / np.mean(f_values))
-            self.mean_F = 0.9 * self.mean_F + 0.1 * lehmer_mean_F
+            mean_f = float(np.mean(f_values))
+            # Guard against division by zero before computing Lehmer mean.
+            if mean_f > 0:
+                lehmer_mean_F = float(np.mean(f_values**2) / mean_f)
+                self.mean_F = 0.9 * self.mean_F + 0.1 * lehmer_mean_F
             self.mean_CR = 0.9 * self.mean_CR + 0.1 * float(np.mean(cr_values))

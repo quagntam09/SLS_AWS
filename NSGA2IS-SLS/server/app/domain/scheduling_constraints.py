@@ -10,9 +10,11 @@ from typing import Dict, List, Optional, Set, Tuple
 import numpy as np
 
 from .dto import ScheduleGenerationRequestDTO
+from ..core.settings import get_settings as _get_settings
 
 SHIFT_NAMES = ("morning", "afternoon")
-SHIFT_HOURS = 4.5
+# Độ dài ca được đọc từ settings (APP_SHIFT_HOURS). Default 4.5h khi không cấu hình.
+SHIFT_HOURS: float = _get_settings().shift_hours
 
 
 # ---------------------------------------------------------------------------

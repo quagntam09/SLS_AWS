@@ -9,7 +9,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class AppSettings(BaseSettings):
-    """Thông số cấu hình cho backend scheduling."""
+    """Thông số cấu hình cho backend scheduling.
+
+    Tất cả giá trị được đọc từ biến môi trường (prefix APP_) hoặc file .env.
+    Không có magic number nào được hardcode trong code domain - thay đổi bằng env var.
+    """
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -19,12 +23,25 @@ class AppSettings(BaseSettings):
         extra="ignore",
     )
 
+    # --- Optimizer ---
     optimizer_population_size: int = Field(default=250, ge=50, le=500)
     optimizer_generations: int = Field(default=400, ge=50, le=800)
     pareto_options_limit: int = Field(default=6, ge=3, le=6)
     progress_update_interval: int = Field(default=50, ge=1, le=1000)
     randomization_strength: float = Field(default=0.08, ge=0.0, le=0.35)
     random_seed: int | None = None
+
+    # --- Domain constraints ---
+    # Độ dài mỗi ca trực (giờ). Thay đổi nếu bệnh viện điều chỉnh ca 6h hoặc 8h.
+    shift_hours: float = Field(default=4.5, ge=1.0, le=24.0)
+    # Số ngày liên tiếp tối đa được phép trực (SC-01).
+    max_consecutive_days: int = Field(default=5, ge=1, le=14)
+
+    # --- Storage ---
+    # Prefix thư mục trong S3 bucket nơi lưu kết quả lịch.
+    s3_result_prefix: str = Field(default="results")
+
+    # --- API / Security ---
     cors_allow_origins: str = Field(default="http://localhost:3000")
     api_key: str | None = Field(default=None, description="API key tùy chọn để bảo vệ endpoint nghiệp vụ")
     env: str = Field(default="development", description="Môi trường chạy app")

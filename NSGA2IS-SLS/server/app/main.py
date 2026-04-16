@@ -9,6 +9,7 @@ import os
 from urllib.parse import urlparse
 
 from fastapi import FastAPI
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from mangum import Mangum
@@ -99,6 +100,15 @@ def health_check() -> dict[str, str]:
 
 
 app.include_router(api_router)
+
+
+@app.exception_handler(StarletteHTTPException)
+def http_exception_handler(_request, exc: StarletteHTTPException) -> JSONResponse:
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+        headers=getattr(exc, "headers", None),
+    )
 
 
 @app.exception_handler(Exception)

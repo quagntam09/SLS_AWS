@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Keep this file on LF line endings for Bash and WSL.
 set -euo pipefail
 
 TAG="${1:-latest}"
@@ -39,6 +40,39 @@ log_success() {
 
 log_error() {
   printf '%b[ERROR]%b %s\n' "${COLOR_RED}" "${COLOR_RESET}" "$1" >&2
+}
+
+resolve_aws_cli() {
+  if command -v aws >/dev/null 2>&1; then
+    command -v aws
+    return 0
+  fi
+
+  if command -v aws.exe >/dev/null 2>&1; then
+    command -v aws.exe
+    return 0
+  fi
+
+  return 1
+}
+
+check_aws_credentials() {
+  local identity_output
+
+  if identity_output="$(${AWS_CLI_CMD} sts get-caller-identity --region "${AWS_REGION}" 2>&1)"; then
+    return 0
+  fi
+
+  if [[ "${identity_output}" == *"NoCredentials"* ]] || [[ "${identity_output}" == *"Unable to locate credentials"* ]]; then
+    log_error "AWS credentials were not found in this shell. If you are in WSL, configure credentials inside WSL too."
+    log_error "Examples: 'aws configure', 'aws sso login --profile <profile>', or export AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY/AWS_SESSION_TOKEN."
+    log_error "If your credentials exist only on Windows, WSL will not automatically reuse them."
+    return 1
+  fi
+
+  printf '%s\n' "${identity_output}" >&2
+  log_error "AWS CLI could not verify credentials."
+  return 1
 }
 
 trap 'log_error "Deploy worker failed."' ERR
@@ -83,7 +117,9 @@ if ! command -v docker >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! command -v aws >/dev/null 2>&1; then
+AWS_CLI_CMD="$(resolve_aws_cli || true)"
+
+if [[ -z "${AWS_CLI_CMD}" ]]; then
   log_error "AWS CLI is not installed or not available in PATH."
   exit 1
 fi
@@ -92,8 +128,12 @@ log_step "Step 1/5: Building Docker image"
 docker build -t "${IMAGE_LOCAL}" .
 log_success "Built image ${IMAGE_LOCAL}"
 
+log_step "Checking AWS credentials"
+check_aws_credentials
+log_success "AWS credentials are available"
+
 log_step "Step 2/5: Logging in to AWS ECR"
-aws ecr get-login-password --region "${AWS_REGION}" | docker login --username AWS --password-stdin "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+"${AWS_CLI_CMD}" ecr get-login-password --region "${AWS_REGION}" | docker login --username AWS --password-stdin "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 log_success "Logged in to ECR"
 
 log_step "Step 3/5: Tagging Docker image for ECR"
@@ -105,7 +145,7 @@ docker push "${IMAGE_URI}"
 log_success "Pushed image to ECR"
 
 log_step "Step 5/5: Deploying CloudFormation stack"
-aws cloudformation deploy \
+"${AWS_CLI_CMD}" cloudformation deploy \
   --stack-name "${STACK_NAME}" \
   --template-file "${TEMPLATE_FILE}" \
   --capabilities CAPABILITY_NAMED_IAM \

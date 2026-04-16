@@ -1,6 +1,6 @@
 # NSGA2IS-SLS
 
-Hệ thống sinh lịch trực bác sĩ bằng NSGA-II cải tiến. API FastAPI nhận request, ghi trạng thái job vào DynamoDB, đẩy payload vào SQS, rồi trả `request_id` ngay. Worker là một process event-driven chạy cùng entrypoint `server.app.worker`, nhận payload từ orchestration bên ngoài, chạy tối ưu, ghi kết quả lên S3 và cập nhật tiến độ job.
+Hệ thống sinh lịch trực bác sĩ bằng NSGA-II cải tiến. API FastAPI nhận request, ghi trạng thái job vào DynamoDB, đẩy payload vào SQS và trả `request_id` ngay. Worker chạy tách biệt theo kiểu event-driven, xử lý tối ưu, ghi kết quả lên S3 và cập nhật tiến độ job.
 
 ## Tóm Tắt Nhanh
 
@@ -10,18 +10,13 @@ Hệ thống sinh lịch trực bác sĩ bằng NSGA-II cải tiến. API FastAP
 - `GET /api/v1/schedules/jobs/{request_id}/metrics` lấy metrics của lịch.
 - `GET /health` kiểm tra trạng thái ứng dụng.
 
-## Kiến Trúc Hiện Tại
+## Kiến Trúc Tóm Tắt
 
 - FastAPI chạy trên AWS Lambda qua Mangum.
-- API không chạy thuật toán trực tiếp; nó chỉ validate request, ghi DynamoDB và publish message vào SQS.
-- Worker nhận 1 job payload mỗi lần chạy, update `running/completed/failed`, rồi lưu kết quả JSON vào S3.
-- DynamoDB lưu trạng thái job, tiến độ, message lỗi, và key trỏ tới kết quả.
+- API chỉ validate request, ghi job vào DynamoDB và publish message vào SQS.
+- Worker nhận payload riêng, chạy NSGA-II, ghi kết quả JSON lên S3 và cập nhật trạng thái `running/completed/failed`.
 - Fargate + EventBridge Pipes là đường chạy worker chuẩn trong repo.
-
-- API mặc định chưa bật authentication/authorization trong môi trường local. Ở `APP_ENV` khác `development/local`, hệ thống yêu cầu `APP_API_KEY`; nếu thiếu, ứng dụng sẽ không khởi động để tránh deploy nhầm API công khai.
-- Kết quả trong DynamoDB/S3 chưa có TTL hay lifecycle policy tự động, nên cần kế hoạch dọn dữ liệu nếu số job tăng.
-- Worker chỉ ghi progress theo chu kỳ `APP_PROGRESS_UPDATE_INTERVAL`; thế hệ cuối luôn cập nhật `100%`.
-- Payload sinh lịch phải hợp lệ theo schema: tối thiểu 12 bác sĩ và `shifts_per_day` hiện được cố định ở `2`.
+- Chi tiết kiến trúc, luồng dữ liệu và các ràng buộc runtime được mô tả trong [ARCHITECTURE.md](ARCHITECTURE.md) và [API.md](API.md).
 
 ## Cấu Trúc Chính
 
@@ -67,47 +62,7 @@ npm install
 
 ## Cấu Hình Môi Trường
 
-Tạo file `.env` ở thư mục gốc khi chạy local. Các biến `APP_*` được đọc bởi `server/app/core/settings.py`:
-
-```bash
-APP_ENV=development
-APP_OPTIMIZER_POPULATION_SIZE=250
-APP_OPTIMIZER_GENERATIONS=400
-APP_PARETO_OPTIONS_LIMIT=6
-APP_PROGRESS_UPDATE_INTERVAL=50
-APP_RANDOMIZATION_STRENGTH=0.08
-APP_RANDOM_SEED=
-APP_CORS_ALLOW_ORIGINS=http://localhost:3000
-APP_API_KEY=
-```
-
-Nếu `APP_API_KEY` được đặt, toàn bộ endpoint nghiệp vụ dưới `/api/v1/schedules` sẽ yêu cầu header `X-API-Key` khớp giá trị này. Nếu để trống, cơ chế xác thực sẽ tắt để không ảnh hưởng môi trường local.
-
-Luồng async trên AWS cần các biến runtime sau:
-
-```bash
-QUEUE_URL=
-TABLE_NAME=
-BUCKET_NAME=
-AWS_REGION=
-```
-
-Worker entrypoint còn hỗ trợ các biến/đầu vào riêng nếu chạy trực tiếp hoặc qua orchestrator:
-
-```bash
-WORKER_EVENT_JSON=
-REQUEST_ID=
-WORKER_MAX_RUNTIME_SECONDS=
-LOG_LEVEL=
-```
-
-Trong `serverless.yml`, các biến AWS này được inject cho Lambda; worker Fargate và các script bootstrap cũng dùng cùng bộ tên canonical khi dựng env file.
-
-`APP_PROGRESS_UPDATE_INTERVAL` điều khiển tần suất worker ghi tiến độ xuống DynamoDB. Ví dụ `50` nghĩa là chỉ cập nhật theo chu kỳ thế hệ, thay vì ghi ở mọi vòng lặp.
-
-`ROOT_PATH=/dev` được dùng cho Lambda/API Gateway hiện tại; nếu đổi stage hay prefix, cần đồng bộ trong `serverless.yml` và `server/app/main.py`.
-
-Khi chạy local, có thể chạy từ bên trong `NSGA2IS-SLS/` như hiện tại, hoặc từ repo root nếu đã set `PYTHONPATH` trỏ vào package tương ứng.
+Tạo file `.env` ở thư mục gốc khi chạy local. Các biến cấu hình được đọc trong [NSGA2IS-SLS/server/app/core/settings.py](NSGA2IS-SLS/server/app/core/settings.py) và được dùng lại bởi Lambda, worker và script deploy. Nếu cần danh sách biến runtime đầy đủ, tham chiếu trực tiếp file settings và [serverless.yml](serverless.yml).
 
 ## Chạy Local
 
@@ -126,25 +81,11 @@ Nếu cần chạy worker thủ công, dùng payload JSON hợp lệ qua `--even
 
 ## Deploy AWS
 
-```bash
-serverless deploy --stage dev
-```
-
-Xem thông tin stack:
-
-```bash
-serverless info --stage dev
-```
-
-Base path hiện tại trên AWS là `/dev`, nên URL thực tế sẽ bao gồm tiền tố này khi đi qua API Gateway.
+Xem cấu hình và lệnh triển khai trong [serverless.yml](serverless.yml). Nếu cần kiểm tra mô hình worker trên ECS Fargate, dùng [deploy/ecs-fargate/README.md](deploy/ecs-fargate/README.md).
 
 ## Deploy Worker
 
-- Khuyến nghị dùng `deploy/ecs-fargate/README.md` cho mô hình SQS -> EventBridge Pipes -> Fargate worker.
-- Worker entrypoint chạy bằng `python -m server.app.worker` và nhận payload qua `--event`, `--payload`, hoặc `WORKER_EVENT_JSON`.
-- Nếu dùng `deploy-worker.sh`, hãy set trước `AWS_ACCOUNT_ID`, `VPC_ID`, `SUBNET_IDS`, `QUEUE_ARN`, `TABLE_NAME`, và `BUCKET_NAME` trong môi trường shell để tránh hardcode hạ tầng trong script.
-- Cách tiện nhất là tạo file `.deploy-worker.env` ở thư mục gốc repo; script sẽ tự đọc file này nếu tồn tại.
-- Có sẵn file mẫu [`.deploy-worker.env.example`](.deploy-worker.env.example) để copy sang `.deploy-worker.env` rồi điền giá trị thật.
+Mô hình worker chuẩn là SQS -> EventBridge Pipes -> Fargate. Hướng dẫn triển khai và runbook go-live nằm trong [deploy/ecs-fargate/README.md](deploy/ecs-fargate/README.md).
 
 ## Tài Liệu Liên Quan
 

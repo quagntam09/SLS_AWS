@@ -3,14 +3,27 @@ org: quagntam
 # "service" is the name of this project. This will also be added to your AWS resource names.
 service: NSGA2IS-SLS
 
+useDotenv: true
+
 plugins:
-  - serverless-python-requirements
   - serverless-dotenv-plugin
 
 custom:
+  # serverless-dotenv-plugin: loại trừ các biến AWS credential để không bị inject vào Lambda env.
+  # Lambda tự nhận credential qua IAM role, không được set thủ công.
+  dotenv:
+    exclude:
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_SESSION_TOKEN
+
   pythonRequirements:
-    dockerizePip: non-linux # Bắt buộc tải thư viện theo chuẩn Linux của AWS Lambda (tránh lỗi nếu build trên Windows/Mac)
-    slim: true              # Loại bỏ các tệp tin không cần thiết của thư viện để giảm dung lượng
+    dockerizePip: non-linux  # Dùng Docker để build packages tương thích Linux khi chạy trên Windows/Mac
+    layer: true              # Đóng gói dependencies vào Lambda Layer thay vì nhúng vào zip
+    useStaticCache: false    # Bỏ qua cache cũ, force rebuild lần này
+  # Giá trị mặc định cho CORS. Đặt env var APP_CORS_ALLOW_ORIGINS để override khi deploy.
+  # Không được dùng cú pháp ${env:VAR, 'http://...'} vì SLS v4 parse 'http' thành provider name.
+  corsAllowOrigins: "http://localhost:3000,https://nsga-ii-ot.vercel.app"
 
 provider:
   name: aws
@@ -59,7 +72,7 @@ provider:
                   - Ref: ScheduleResultsBucket
                   - "/*"
   environment:
-    PYTHONPATH: "/var/task/NSGA2IS-SLS:/var/task"
+    PYTHONPATH: "/var/task/NSGA2IS-SLS:/var/task:/opt/python"
     APP_ENV: ${env:APP_ENV, 'production'}
     APP_OPTIMIZER_POPULATION_SIZE: ${env:APP_OPTIMIZER_POPULATION_SIZE, 500}
     APP_OPTIMIZER_GENERATIONS: ${env:APP_OPTIMIZER_GENERATIONS, 500}
@@ -67,9 +80,12 @@ provider:
     APP_PROGRESS_UPDATE_INTERVAL: ${env:APP_PROGRESS_UPDATE_INTERVAL, 50}
     APP_RANDOMIZATION_STRENGTH: ${env:APP_RANDOMIZATION_STRENGTH, 0.08}
     APP_RANDOM_SEED: ${env:APP_RANDOM_SEED, 42}
+    APP_SHIFT_HOURS: ${env:APP_SHIFT_HOURS, 4.5}
+    APP_MAX_CONSECUTIVE_DAYS: ${env:APP_MAX_CONSECUTIVE_DAYS, 5}
+    S3_RESULT_PREFIX: ${env:S3_RESULT_PREFIX, 'results'}
     APP_API_KEY: ${env:APP_API_KEY, ''}
-    APP_CORS_ALLOW_ORIGINS: "http://localhost:3000,https://nsga-ii-ot.vercel.app"
-    ROOT_PATH: /dev
+    APP_CORS_ALLOW_ORIGINS: ${env:APP_CORS_ALLOW_ORIGINS, '${self:custom.corsAllowOrigins}'}
+    ROOT_PATH: ${env:ROOT_PATH, '/dev'}
     QUEUE_URL:
       Ref: ScheduleJobsQueue
     TABLE_NAME:
@@ -82,6 +98,8 @@ functions:
     handler: bootstrap.handler
     # Keep the submit endpoint aligned with the provider timeout above.
     timeout: 30
+    layers:
+      - Ref: PythonRequirementsLambdaLayer
     events:
       - httpApi:
           path: /

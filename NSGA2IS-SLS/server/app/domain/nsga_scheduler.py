@@ -18,6 +18,7 @@ from .scheduling_constraints import (
     HardConstraintManager as SchedulerHardConstraintManager,
     _validate_hard_constraints as validate_hard_constraints,
 )
+from ..core.settings import get_settings as _get_settings
 
 from .dto import (
     AlgorithmRunMetricsDTO,
@@ -32,7 +33,8 @@ from .dto import (
 
 
 SHIFT_NAMES = ("morning", "afternoon")
-SHIFT_HOURS = 4.5
+# Dùng giá trị được đọc từ scheduling_constraints (đã lấy từ settings).
+SHIFT_HOURS = SC_SHIFT_HOURS
 
 
 # ---------------------------------------------------------------------------
@@ -505,6 +507,9 @@ class DutySchedulingProblem:
         self.n_days = request.num_days
         self.total_shift_slots = self.n_days * self.n_shifts * self.rooms * self.dproom
         
+        # Configurable constraints from settings
+        self.max_consecutive_days: int = _get_settings().max_consecutive_days
+        
         # Problem dimensions
         self.n_obj = 2
         self.n_var = self.total_shift_slots
@@ -725,10 +730,10 @@ class DutySchedulingProblem:
         n_months = max(1, len(set(d['month_key'] for d in self.day_meta)))
         total_weekends = sum(1 for d in self.day_meta if d['is_weekend'])
         
-        # SC-01: Không làm việc quá 5 ngày liên tiếp
+        # SC-01: Không làm việc quá max_consecutive_days ngày liên tiếp
         for idx in range(self.n_doctors):
-            if consecutive_days[idx] > 5:
-                penalty += 2.0 * (consecutive_days[idx] - 5)
+            if consecutive_days[idx] > self.max_consecutive_days:
+                penalty += 2.0 * (consecutive_days[idx] - self.max_consecutive_days)
         
         # SC-02: Giới hạn giờ làm/tuần (ưu tiên gần mức tối đa)
         max_weekly_hours = self.request.max_weekly_hours_per_doctor

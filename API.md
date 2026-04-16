@@ -47,7 +47,7 @@ Ví dụ dưới đây chỉ minh họa format. Payload thật phải có ít nh
 - `max_days_off_per_doctor` áp dụng cho số ngày nghỉ trong kỳ.
 - `rooms_per_shift` nằm trong khoảng `1..10`.
 - `doctors_per_room` nằm trong khoảng `1..15`.
-- `shifts_per_day` hiện cố định là `2`.
+- `shifts_per_day` chấp nhận `1` hoặc `2` (hard constraint HC-09).
 
 ### Response 202
 
@@ -186,16 +186,8 @@ Lấy metrics thuật toán và metrics của từng phương án Pareto.
 
 ## 6. Ghi chú vận hành
 
-- `progress` trả DTO trạng thái, không trả full result.
+- `progress` chỉ trả DTO trạng thái, không trả full result.
 - `schedule` và `metrics` chỉ trả khi job đã `completed`.
-- Kết quả hoàn chỉnh được lưu dưới key `results/{request_id}.json` trong S3.
-- `APP_CORS_ALLOW_ORIGINS` điều khiển CORS của FastAPI.
-
-## 7. Checklist kiểm tra AWS
-
-1. `POST /api/v1/schedules/run` trả `request_id`.
-2. `GET /api/v1/schedules/progress/{request_id}` chuyển sang `completed`.
-3. `GET /api/v1/schedules/jobs/{request_id}/schedule` trả `200`.
-4. `GET /api/v1/schedules/jobs/{request_id}/metrics` trả `200`.
-5. DynamoDB item có `status=completed` và `result_s3_key`.
-6. S3 có object `results/{request_id}.json`.
+- Kết quả hoàn chỉnh được lưu dưới key `{S3_RESULT_PREFIX}/{request_id}.json` trong S3 (default prefix `results`).
+- Tham số thuật toán (`APP_SHIFT_HOURS`, `APP_MAX_CONSECUTIVE_DAYS`, v.v.) được cấu hình qua biến môi trường — xem [ARCHITECTURE.md](ARCHITECTURE.md#7-runtime-và-cấu-hình).
+- Checklist kiểm tra triển khai AWS nằm trong [deploy/ecs-fargate/README.md](deploy/ecs-fargate/README.md).

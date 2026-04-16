@@ -54,6 +54,14 @@ def _configure_runtime_timeout() -> None:
     if timeout_seconds <= 0:
         return
 
+    if not hasattr(signal, "SIGALRM"):
+        logger.warning(
+            "WORKER_MAX_RUNTIME_SECONDS=%s is set but SIGALRM is not available on this platform. "
+            "Runtime timeout will not be enforced.",
+            timeout_seconds,
+        )
+        return
+
     def _handle_timeout(_signum, _frame) -> None:
         raise TimeoutError(f"Worker exceeded max runtime of {timeout_seconds} seconds")
 
@@ -64,7 +72,8 @@ def _configure_runtime_timeout() -> None:
 
 def _clear_runtime_timeout() -> None:
     try:
-        signal.alarm(0)
+        if hasattr(signal, "SIGALRM"):
+            signal.alarm(0)
     except Exception:
         pass
 
@@ -156,24 +165,33 @@ def _extract_request_id(event: dict[str, Any], cli_request_id: str | None = None
     raise RuntimeError("Missing request_id. Provide it in the event or via REQUEST_ID/--request-id")
 
 
-def _unwrap_event(event: Any) -> Any:
+_UNWRAP_MAX_DEPTH = 10
+
+
+def _unwrap_event(event: Any, _depth: int = 0) -> Any:
+    if _depth >= _UNWRAP_MAX_DEPTH:
+        logger.warning(
+            "_unwrap_event: max recursion depth (%d) reached — returning event as-is.", _UNWRAP_MAX_DEPTH
+        )
+        return event
+
     if isinstance(event, list) and event:
-        return _unwrap_event(event[0])
+        return _unwrap_event(event[0], _depth + 1)
 
     if not isinstance(event, dict):
         return event
 
     if "detail" in event:
-        return _unwrap_event(event["detail"])
+        return _unwrap_event(event["detail"], _depth + 1)
 
     if "body" in event:
-        return _unwrap_event(_load_json_value(event["body"]))
+        return _unwrap_event(_load_json_value(event["body"]), _depth + 1)
 
     if "Body" in event:
-        return _unwrap_event(_load_json_value(event["Body"]))
+        return _unwrap_event(_load_json_value(event["Body"]), _depth + 1)
 
     if "Records" in event and isinstance(event["Records"], list) and event["Records"]:
-        return _unwrap_event(event["Records"][0])
+        return _unwrap_event(event["Records"][0], _depth + 1)
 
     return event
 
@@ -258,11 +276,12 @@ def main(argv: list[str] | None = None) -> None:
         _clear_runtime_timeout()
         sys.exit(0)
     except Exception as exc:
-        logger.exception("Worker task failed")
+        error_message = f"{type(exc).__name__}: {exc}"
+        logger.exception("Worker task failed: %s", error_message)
 
         if job_request_id:
             try:
-                mark_failed(job_request_id, "Worker task failed")
+                mark_failed(job_request_id, error_message)
             except Exception:
                 logger.exception("Unable to persist failure state for %s", job_request_id)
 

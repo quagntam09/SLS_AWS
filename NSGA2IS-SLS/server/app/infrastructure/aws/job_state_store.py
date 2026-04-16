@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import random
 import uuid
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -59,7 +60,11 @@ def _normalize_status(status: object) -> str:
         "COMPLETED": STATUS_COMPLETED,
         "FAILED": STATUS_FAILED,
     }
-    return aliases.get(normalized, normalized)
+    result = aliases.get(normalized, normalized)
+    _known = {STATUS_PENDING, STATUS_RUNNING, STATUS_COMPLETED, STATUS_FAILED}
+    if result not in _known:
+        logger.warning("Unexpected job status value %r — passing through as-is.", normalized)
+    return result
 
 
 def _utc_now() -> str:
@@ -111,7 +116,8 @@ def _bucket_name() -> str:
 
 
 def _result_s3_key(request_id: str) -> str:
-    return f"results/{request_id}.json"
+    prefix = os.getenv("S3_RESULT_PREFIX", "results").strip().strip("/")
+    return f"{prefix}/{request_id}.json"
 
 
 def _result_s3_url(bucket_name: str, s3_key: str) -> str:
@@ -162,7 +168,9 @@ def _with_retries(operation_name: str, fn):
             last_exc = exc
             if attempt >= MAX_RETRIES or not _is_retriable_exception(exc):
                 break
-            sleep(BASE_BACKOFF_SECONDS * (2 ** (attempt - 1)))
+            # Exponential backoff with jitter to avoid thundering herd.
+            jitter = random.uniform(0.0, BASE_BACKOFF_SECONDS)
+            sleep(BASE_BACKOFF_SECONDS * (2 ** (attempt - 1)) + jitter)
 
     assert last_exc is not None
     raise RuntimeError(f"{operation_name} failed: {_safe_error_message(last_exc)}") from last_exc
@@ -195,9 +203,10 @@ def _best_effort_mark_failed(request_id: str, error: str) -> None:
             ),
         )
     except Exception as exc:
-        print(
-            f"[job_state_store] Unable to persist failed status for {request_id}: "
-            f"{_safe_error_message(exc)}"
+        logger.error(
+            "[job_state_store] Unable to persist failed status for %s: %s",
+            request_id,
+            _safe_error_message(exc),
         )
 
 

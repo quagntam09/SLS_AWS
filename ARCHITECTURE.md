@@ -128,61 +128,41 @@ Thông tin job trong DynamoDB thường bao gồm:
 
 Kết quả đầy đủ nằm trong S3 để tránh phình lớn bản ghi trạng thái ở DynamoDB. Cách tổ chức này giúp đọc progress nhanh nhưng vẫn giữ được dữ liệu đầu ra chi tiết khi cần.
 
-## 7. Các lớp runtime và cấu hình
+## 7. Runtime và cấu hình
 
-- **API runtime**: AWS Lambda với Python 3.12 thông qua Mangum.
-- **Worker runtime**: process Python độc lập, phù hợp với ECS Fargate hoặc wrapper event-driven tùy cách triển khai.
-- **Base path hiện tại**: `/dev` trong môi trường deploy hiện tại.
-- **Package root**: code vẫn nằm dưới `NSGA2IS-SLS`, nhưng bootstrap, Docker và Lambda runtime đã được cấu hình để chấp nhận cả `NSGA2IS-SLS` lẫn repo root khi cần.
-- **S3 output key**: kết quả cuối cùng được lưu theo pattern `results/{request_id}.json`.
+- API runtime là AWS Lambda với Python 3.12 thông qua Mangum.
+- Worker runtime là process Python độc lập, phù hợp với ECS Fargate hoặc wrapper event-driven.
+- Kết quả cuối cùng được lưu theo pattern `{S3_RESULT_PREFIX}/{request_id}.json` trong S3 (default prefix: `results`).
 
 ### Biến môi trường chính
 
-Các biến runtime cốt lõi của luồng async gồm:
+| Biến | Default | Mô tả |
+|------|---------|-------|
+| `APP_ENV` | `production` | Môi trường chạy (`development`, `production`, ...) |
+| `APP_OPTIMIZER_POPULATION_SIZE` | `500` | Kích thước quần thể NSGA-II |
+| `APP_OPTIMIZER_GENERATIONS` | `500` | Số thế hệ tiến hóa |
+| `APP_PARETO_OPTIONS_LIMIT` | `6` | Số phương án Pareto trả về |
+| `APP_PROGRESS_UPDATE_INTERVAL` | `50` | Chu kỳ cập nhật tiến độ (theo thế hệ) |
+| `APP_RANDOMIZATION_STRENGTH` | `0.08` | Độ ngẫu nhiên khi phá vỡ tie trong decode |
+| `APP_RANDOM_SEED` | `42` | Seed ngẫu nhiên cho tái hiện kết quả |
+| `APP_SHIFT_HOURS` | `4.5` | Độ dài một ca trực (giờ) — thay đổi nếu bệnh viện dùng ca 6h/8h |
+| `APP_MAX_CONSECUTIVE_DAYS` | `5` | Số ngày liên tiếp tối đa được phép trực (SC-01) |
+| `APP_CORS_ALLOW_ORIGINS` | *(local + vercel)* | Danh sách origin cho phép, phân cách bằng dấu phẩy |
+| `APP_API_KEY` | *(rỗng)* | Bắt buộc đặt khi `APP_ENV` không phải `development` |
+| `S3_RESULT_PREFIX` | `results` | Prefix thư mục trong S3 bucket nơi lưu kết quả |
+| `ROOT_PATH` | `/dev` | Base path của API (dùng cho Mangum) |
+| `QUEUE_URL` | *(CloudFormation Ref)* | URL SQS queue |
+| `TABLE_NAME` | *(CloudFormation Ref)* | Tên DynamoDB table |
+| `BUCKET_NAME` | *(CloudFormation Ref)* | Tên S3 bucket |
 
-- `QUEUE_URL`
-- `TABLE_NAME`
-- `BUCKET_NAME`
-- `AWS_REGION`
-
-Worker và bootstrap script có thể dùng thêm:
-
-- `WORKER_EVENT_JSON`
-- `REQUEST_ID`
-- `WORKER_MAX_RUNTIME_SECONDS`
-- `LOG_LEVEL`
-
-Các biến `APP_*` điều khiển hành vi tối ưu và được đọc bởi `server/app/core/settings.py`, đặc biệt là:
-
-- số lượng cá thể ban đầu,
-- số thế hệ,
-- số phương án Pareto cần giữ,
-- chu kỳ cập nhật progress,
-- mức độ randomization,
-- random seed.
+Danh sách đầy đủ và default xem tại [serverless.yml](serverless.yml) và [server/app/core/settings.py](NSGA2IS-SLS/server/app/core/settings.py).
 
 ## 8. Kiến trúc triển khai AWS
 
-### 8.1 API layer
-
-FastAPI được đóng gói để chạy trên Lambda. Lambda chỉ giữ vai trò gateway cho request/response, không thực thi thuật toán tối ưu trực tiếp.
-
-### 8.2 Queue layer
-
-SQS là điểm tách giữa API và worker. Lợi ích của tầng này là:
-
-- giảm coupling giữa HTTP và tính toán dài,
-- cho phép retry theo cơ chế queue,
-- chống nghẽn khi có nhiều request đồng thời.
-
-### 8.3 Worker layer
-
-Worker đọc job từ payload, cập nhật trạng thái, chạy thuật toán và ghi kết quả. Trong repository, worker chuẩn được thiết kế để chạy cùng mô hình Fargate + EventBridge Pipes, nhưng entrypoint vẫn đủ linh hoạt để bọc bởi orchestrator khác nếu cần.
-
-### 8.4 Data layer
-
-- **DynamoDB**: lưu trạng thái job, tiến độ và metadata điều phối.
-- **S3**: lưu kết quả hoàn chỉnh của job dưới dạng JSON.
+- FastAPI được đóng gói để chạy trên Lambda, chỉ làm nhiệm vụ nhận và trả request.
+- SQS là điểm tách giữa API và worker để giảm coupling và cho phép retry tự nhiên.
+- Worker đọc payload, cập nhật trạng thái, chạy thuật toán và ghi kết quả.
+- DynamoDB lưu trạng thái job, còn S3 lưu kết quả hoàn chỉnh dưới dạng JSON.
 
 ## 9. Luồng đọc dữ liệu từ API
 
