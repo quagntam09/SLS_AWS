@@ -7,6 +7,7 @@ useDotenv: true
 
 plugins:
   - serverless-dotenv-plugin
+  - serverless-python-requirements
 
 custom:
   # serverless-dotenv-plugin: loại trừ các biến AWS credential để không bị inject vào Lambda env.
@@ -16,6 +17,7 @@ custom:
       - AWS_ACCESS_KEY_ID
       - AWS_SECRET_ACCESS_KEY
       - AWS_SESSION_TOKEN
+      - AWS_REGION
 
   pythonRequirements:
     dockerizePip: non-linux  # Dùng Docker để build packages tương thích Linux khi chạy trên Windows/Mac
@@ -27,7 +29,7 @@ custom:
 
 provider:
   name: aws
-  runtime: python3.12
+  runtime: python3.11
   region: ${env:AWS_REGION, 'ap-southeast-2'}
   # 30s is for the NSGA submit API path; the actual schedule generation runs async in the worker.
   timeout: 30
