@@ -88,11 +88,11 @@ tools/
 artifacts/
 legacy/ec2/
 
-# NSGA2IS-SLS generated experiment outputs
-NSGA2IS-SLS/artifacts/aws-experiments/**
-!NSGA2IS-SLS/artifacts/aws-experiments/
-NSGA2IS-SLS/aws-experiment-*.json
+# OADE-NSGA-II-SLS generated experiment outputs
+OADE-NSGA-II-SLS/artifacts/aws-experiments/**
+!OADE-NSGA-II-SLS/artifacts/aws-experiments/
+OADE-NSGA-II-SLS/aws-experiment-*.json
 
-# NSGA2IS-SLS personal-only tools
-NSGA2IS-SLS/tools
-NSGA2IS-SLS/artifacts
+# OADE-NSGA-II-SLS personal-only tools
+OADE-NSGA-II-SLS/tools
+OADE-NSGA-II-SLS/artifacts

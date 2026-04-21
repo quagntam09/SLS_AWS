@@ -5,8 +5,8 @@ set -euo pipefail
 TAG="${1:-latest}"
 AWS_REGION="${AWS_REGION:-ap-southeast-1}"
 AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-}"
-ECR_REPOSITORY="${ECR_REPOSITORY:-nsga2is-sls-worker}"
-STACK_NAME="${STACK_NAME:-nsga2is-sls-worker-fargate}"
+ECR_REPOSITORY="${ECR_REPOSITORY:-oade-nsga2-sls-worker}"
+STACK_NAME="${STACK_NAME:-oade-nsga2-sls-worker-fargate}"
 TEMPLATE_FILE="${TEMPLATE_FILE:-deploy/ecs-fargate/worker-fargate-stack.yaml}"
 VPC_ID="${VPC_ID:-}"
 SUBNET_IDS="${SUBNET_IDS:-}"
@@ -75,6 +75,22 @@ check_aws_credentials() {
   return 1
 }
 
+verify_target_account() {
+  local caller_account
+  caller_account="$(${AWS_CLI_CMD} sts get-caller-identity --query 'Account' --output text --region "${AWS_REGION}" 2>/dev/null || true)"
+
+  if [[ -z "${caller_account}" ]]; then
+    log_error "Unable to resolve AWS caller account from current credentials."
+    return 1
+  fi
+
+  if [[ "${caller_account}" != "${AWS_ACCOUNT_ID}" ]]; then
+    log_error "Credential/account mismatch: current credentials are for account ${caller_account}, but AWS_ACCOUNT_ID is ${AWS_ACCOUNT_ID}."
+    log_error "Switch AWS credentials/profile or update AWS_ACCOUNT_ID before deploying."
+    return 1
+  fi
+}
+
 trap 'log_error "Deploy worker failed."' ERR
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -87,8 +103,8 @@ if [[ -f "${DEPLOY_ENV_FILE}" ]]; then
   set +a
   AWS_REGION="${AWS_REGION:-ap-southeast-1}"
   AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-}"
-  ECR_REPOSITORY="${ECR_REPOSITORY:-nsga2is-sls-worker}"
-  STACK_NAME="${STACK_NAME:-nsga2is-sls-worker-fargate}"
+  ECR_REPOSITORY="${ECR_REPOSITORY:-oade-nsga2-sls-worker}"
+  STACK_NAME="${STACK_NAME:-oade-nsga2-sls-worker-fargate}"
   TEMPLATE_FILE="${TEMPLATE_FILE:-deploy/ecs-fargate/worker-fargate-stack.yaml}"
   VPC_ID="${VPC_ID:-}"
   SUBNET_IDS="${SUBNET_IDS:-}"
@@ -131,6 +147,10 @@ log_success "Built image ${IMAGE_LOCAL}"
 log_step "Checking AWS credentials"
 check_aws_credentials
 log_success "AWS credentials are available"
+
+log_step "Verifying deploy target account"
+verify_target_account
+log_success "AWS credentials match AWS_ACCOUNT_ID=${AWS_ACCOUNT_ID}"
 
 log_step "Step 2/5: Logging in to AWS ECR"
 "${AWS_CLI_CMD}" ecr get-login-password --region "${AWS_REGION}" | docker login --username AWS --password-stdin "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"

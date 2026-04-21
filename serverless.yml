@@ -1,7 +1,7 @@
 # "org" ensures this Service is used with the correct Serverless Framework License Key.
-org: quagntam
+org: ${env:SERVERLESS_ORG, 'quagntam'}
 # "service" is the name of this project. This will also be added to your AWS resource names.
-service: NSGA2IS-SLS
+service: OADE-NSGA2-SLS
 
 useDotenv: true
 
@@ -28,7 +28,7 @@ custom:
 provider:
   name: aws
   runtime: python3.12
-  region: ap-southeast-1
+  region: ${env:AWS_REGION, 'ap-southeast-2'}
   # 30s is for the NSGA submit API path; the actual schedule generation runs async in the worker.
   timeout: 30
   httpApi:
@@ -72,7 +72,7 @@ provider:
                   - Ref: ScheduleResultsBucket
                   - "/*"
   environment:
-    PYTHONPATH: "/var/task/NSGA2IS-SLS:/var/task:/opt/python"
+    PYTHONPATH: "/var/task/OADE-NSGA-II-SLS:/var/task:/opt/python"
     APP_ENV: ${env:APP_ENV, 'production'}
     APP_OPTIMIZER_POPULATION_SIZE: ${env:APP_OPTIMIZER_POPULATION_SIZE, 500}
     APP_OPTIMIZER_GENERATIONS: ${env:APP_OPTIMIZER_GENERATIONS, 500}
@@ -115,14 +115,14 @@ package:
     - '!.git/**'
     - '!venv/**'
     - '!.venv/**'
-    - '!NSGA2IS-SLS/.venv/**'
-    - '!NSGA2IS-SLS/.serverless/**'
-    - '!NSGA2IS-SLS/node_modules/**'
-    - '!NSGA2IS-SLS/tests/**'
-    - '!NSGA2IS-SLS/artifacts/**'
-    - '!NSGA2IS-SLS/**/*.md'
-    - '!NSGA2IS-SLS/**/*.json'
-    - '!NSGA2IS-SLS/**/*.sh'
+    - '!OADE-NSGA-II-SLS/.venv/**'
+    - '!OADE-NSGA-II-SLS/.serverless/**'
+    - '!OADE-NSGA-II-SLS/node_modules/**'
+    - '!OADE-NSGA-II-SLS/tests/**'
+    - '!OADE-NSGA-II-SLS/artifacts/**'
+    - '!OADE-NSGA-II-SLS/**/*.md'
+    - '!OADE-NSGA-II-SLS/**/*.json'
+    - '!OADE-NSGA-II-SLS/**/*.sh'
     - '!serverless-state.json'
     - '!**/__pycache__/**'
     - '!**/*.pyc'
@@ -161,7 +161,7 @@ resources:
               Action:
                 - sts:AssumeRole
         Policies:
-          - PolicyName: nsga2is-sls-worker-access
+          - PolicyName: oade-nsga2-sls-worker-access
             PolicyDocument:
               Version: '2012-10-17'
               Statement:

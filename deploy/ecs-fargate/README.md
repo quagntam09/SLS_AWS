@@ -73,6 +73,7 @@ File: [../../deploy-worker.sh](../../deploy-worker.sh)
 - Script deploy không còn chứa hardcoded VPC/Subnet/Queue/Table/Bucket nữa.
 - Script có thể tự nạp file `.deploy-worker.env` ở thư mục gốc repo nếu file này tồn tại.
 - Cần truyền các biến môi trường bắt buộc trước khi chạy: `AWS_ACCOUNT_ID`, `VPC_ID`, `SUBNET_IDS`, `QUEUE_ARN`, `TABLE_NAME`, `BUCKET_NAME`.
+- Script sẽ đối chiếu account từ credentials hiện tại (`sts get-caller-identity`) với `AWS_ACCOUNT_ID` và dừng nếu không khớp để tránh deploy nhầm account.
 - Các biến tùy chọn: `AWS_REGION`, `ECR_REPOSITORY`, `STACK_NAME`, `TEMPLATE_FILE`, `CPU`, `MEMORY`, `ASSIGN_PUBLIC_IP`.
 - `ASSIGN_PUBLIC_IP` nên giữ `DISABLED` nếu môi trường VPC có NAT Gateway hoặc VPC Endpoints.
 - Có thể dùng [`.deploy-worker.env.example`](../../.deploy-worker.env.example) làm template rồi copy sang `.deploy-worker.env`.
@@ -108,7 +109,7 @@ Chuẩn bị sẵn:
 
 - Queue chính là nơi API đẩy job vào.
 - Job body phải có format như ở mục Payload Contract.
-- Tạo DLQ riêng, ví dụ `nsga2is-sls-worker-dlq`.
+- Tạo DLQ riêng, ví dụ `oade-nsga2-sls-worker-dlq`.
 - Thiết lập retention đủ dài để điều tra sự cố, ví dụ 14 ngày.
 - Role của Pipe phải có quyền `sqs:SendMessage` vào DLQ và vẫn có quyền đọc queue chính.
 - EventBridge Pipes với target ECS chỉ coi `RunTask` thành công là hoàn tất delivery; DLQ chủ yếu bảo vệ lỗi delivery, không phải lỗi runtime sau khi task đã start.
@@ -118,26 +119,26 @@ Chuẩn bị sẵn:
 Từ thư mục gốc project:
 
 ```bash
-docker build -t nsga2is-sls-worker:latest .
+docker build -t oade-nsga2-sls-worker:latest .
 ```
 
 Tạo ECR repository:
 
 ```bash
-aws ecr create-repository --repository-name nsga2is-sls-worker --region ap-southeast-1
+aws ecr create-repository --repository-name oade-nsga2-sls-worker --region ap-southeast-2
 ```
 
 Login Docker vào ECR:
 
 ```bash
-aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin <ACCOUNT_ID>.dkr.ecr.ap-southeast-1.amazonaws.com
+aws ecr get-login-password --region ap-southeast-2 | docker login --username AWS --password-stdin <ACCOUNT_ID>.dkr.ecr.ap-southeast-2.amazonaws.com
 ```
 
 Tag và push image:
 
 ```bash
-docker tag nsga2is-sls-worker:latest <ACCOUNT_ID>.dkr.ecr.ap-southeast-1.amazonaws.com/nsga2is-sls-worker:latest
-docker push <ACCOUNT_ID>.dkr.ecr.ap-southeast-1.amazonaws.com/nsga2is-sls-worker:latest
+docker tag oade-nsga2-sls-worker:latest <ACCOUNT_ID>.dkr.ecr.ap-southeast-2.amazonaws.com/oade-nsga2-sls-worker:latest
+docker push <ACCOUNT_ID>.dkr.ecr.ap-southeast-2.amazonaws.com/oade-nsga2-sls-worker:latest
 ```
 
 ### 7.5. CPU/RAM và runtime
@@ -179,20 +180,20 @@ Ví dụ deploy:
 
 ```bash
 aws cloudformation deploy \
-  --stack-name nsga2is-sls-worker-fargate \
+  --stack-name oade-nsga2-sls-worker-fargate \
   --template-file deploy/ecs-fargate/worker-fargate-stack.yaml \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides \
     VpcId=vpc-xxxxxxxx \
     SubnetIds=subnet-aaaaaaa,subnet-bbbbbbb \
-    QueueArn=arn:aws:sqs:ap-southeast-1:<ACCOUNT_ID>:nsga2is-sls-job-queue \
-    ImageUri=<ACCOUNT_ID>.dkr.ecr.ap-southeast-1.amazonaws.com/nsga2is-sls-worker:latest \
-    TableName=nsga2is-sls-dev-requests \
-    BucketName=nsga2is-sls-dev-results \
+    QueueArn=arn:aws:sqs:ap-southeast-2:<ACCOUNT_ID>:oade-nsga2-sls-job-queue \
+    ImageUri=<ACCOUNT_ID>.dkr.ecr.ap-southeast-2.amazonaws.com/oade-nsga2-sls-worker:latest \
+    TableName=oade-nsga2-sls-dev-requests \
+    BucketName=oade-nsga2-sls-dev-results \
     Cpu=2048 \
     Memory=4096 \
     AssignPublicIp=DISABLED \
-    DlqName=nsga2is-sls-worker-dlq
+    DlqName=oade-nsga2-sls-worker-dlq
 ```
 
 ### 7.8. IAM tối thiểu

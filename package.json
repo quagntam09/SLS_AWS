@@ -1,5 +1,5 @@
 {
-  "name": "NSGA2IS-SLS",
+  "name": "oade-nsga2-sls",
   "version": "1.0.0",
   "description": "FastAPI schedule optimization service deployed with Serverless Framework and Mangum",
   "author": "",

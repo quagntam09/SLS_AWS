@@ -1,11 +1,11 @@
 {
-  "family": "nsga2is-sls-worker",
+  "family": "oade-nsga2-sls-worker",
   "networkMode": "awsvpc",
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "1024",
   "memory": "2048",
-  "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/nsga2is-sls-fargate-execution-role",
-  "taskRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/nsga2is-sls-fargate-task-role",
+  "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/oade-nsga2-sls-fargate-execution-role",
+  "taskRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/oade-nsga2-sls-fargate-task-role",
   "runtimePlatform": {
     "cpuArchitecture": "X86_64",
     "operatingSystemFamily": "LINUX"
@@ -13,7 +13,7 @@
   "containerDefinitions": [
     {
       "name": "nsga2-worker",
-      "image": "<ACCOUNT_ID>.dkr.ecr.ap-southeast-1.amazonaws.com/nsga2is-sls-worker:latest",
+      "image": "<ACCOUNT_ID>.dkr.ecr.ap-southeast-2.amazonaws.com/oade-nsga2-sls-worker:latest",
       "essential": true,
       "command": ["python", "-m", "server.app.worker"],
       "environment": [
@@ -59,15 +59,15 @@
         },
         {
           "name": "TABLE_NAME",
-          "value": "nsga2is-sls-dev-requests"
+          "value": "oade-nsga2-sls-dev-requests"
         },
         {
           "name": "BUCKET_NAME",
-          "value": "nsga2is-sls-dev-results"
+          "value": "oade-nsga2-sls-dev-results"
         },
         {
           "name": "AWS_REGION",
-          "value": "ap-southeast-1"
+          "value": "ap-southeast-2"
         },
         {
           "name": "LOG_LEVEL",
@@ -77,8 +77,8 @@
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
-          "awslogs-group": "/ecs/nsga2is-sls-worker",
-          "awslogs-region": "ap-southeast-1",
+          "awslogs-group": "/ecs/oade-nsga2-sls-worker",
+          "awslogs-region": "ap-southeast-2",
           "awslogs-stream-prefix": "ecs"
         }
       }

@@ -28,7 +28,7 @@ Parameters:
     Type: String
   AwsRegion:
     Type: String
-    Default: ap-southeast-1
+    Default: ap-southeast-2
 
 Resources:
   PipesRole:
@@ -42,7 +42,7 @@ Resources:
               Service: pipes.amazonaws.com
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: nsga2is-sls-pipes-run-task
+        - PolicyName: oade-nsga2-sls-pipes-run-task
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -68,7 +68,7 @@ Resources:
   SqsToFargatePipe:
     Type: AWS::Pipes::Pipe
     Properties:
-      Name: nsga2is-sls-sqs-to-fargate
+      Name: oade-nsga2-sls-sqs-to-fargate
       RoleArn: !GetAtt PipesRole.Arn
       Source: !Ref QueueArn
       SourceParameters:

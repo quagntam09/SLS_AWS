@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: ECS Fargate worker stack for NSGA2IS-SLS.
+Description: ECS Fargate worker stack for OADE-NSGA2-SLS.
 
 Parameters:
   VpcId:
@@ -10,7 +10,7 @@ Parameters:
     Type: String
   DlqName:
     Type: String
-    Default: nsga2is-sls-worker-dlq
+    Default: oade-nsga2-sls-worker-dlq
   ImageUri:
     Type: String
   TableName:
@@ -40,7 +40,7 @@ Parameters:
     Default: '42'
   AwsRegion:
     Type: String
-    Default: ap-southeast-1
+    Default: ap-southeast-2
   WorkerMaxRuntimeSeconds:
     Type: String
     Default: '7200'
@@ -58,7 +58,7 @@ Resources:
   WorkerCluster:
     Type: AWS::ECS::Cluster
     Properties:
-      ClusterName: nsga2is-sls-worker-cluster
+      ClusterName: oade-nsga2-sls-worker-cluster
 
   WorkerDlq:
     Type: AWS::SQS::Queue
@@ -69,7 +69,7 @@ Resources:
   WorkerLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: /ecs/nsga2is-sls-worker
+      LogGroupName: /ecs/oade-nsga2-sls-worker
       RetentionInDays: 7
 
   WorkerSecurityGroup:
@@ -119,7 +119,7 @@ Resources:
   WorkerTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: nsga2is-sls-worker
+      Family: oade-nsga2-sls-worker
       Cpu: !Ref Cpu
       Memory: !Ref Memory
       NetworkMode: awsvpc
@@ -179,7 +179,7 @@ Resources:
   SqsToFargatePipe:
     Type: AWS::Pipes::Pipe
     Properties:
-      Name: nsga2is-sls-sqs-to-fargate
+      Name: oade-nsga2-sls-sqs-to-fargate
       RoleArn: !GetAtt PipeRole.Arn
       Source: !Ref QueueArn
       Target: !GetAtt WorkerCluster.Arn

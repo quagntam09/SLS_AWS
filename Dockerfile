@@ -1,7 +1,7 @@
 FROM python:3.10-slim
 
 # Cho phép đổi thư mục source mà không phải sửa lệnh copy / PYTHONPATH trong nhiều chỗ.
-ARG SOURCE_DIR=NSGA2IS-SLS
+ARG SOURCE_DIR=OADE-NSGA-II-SLS
 
 # Ngăn Python tạo file .pyc và ép log đẩy thẳng ra console
 ENV PYTHONDONTWRITEBYTECODE=1 \

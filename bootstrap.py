@@ -6,6 +6,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent
 PACKAGE_ROOT_CANDIDATES = (
+    REPO_ROOT / "OADE-NSGA-II-SLS",
     REPO_ROOT / "NSGA2IS-SLS",
     REPO_ROOT,
 )

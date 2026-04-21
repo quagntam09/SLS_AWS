@@ -10,10 +10,10 @@ if ([string]::IsNullOrWhiteSpace($AwsRegion)) { $AwsRegion = 'ap-southeast-1' }
 
 $AwsAccountId = $env:AWS_ACCOUNT_ID
 $EcrRepository = $env:ECR_REPOSITORY
-if ([string]::IsNullOrWhiteSpace($EcrRepository)) { $EcrRepository = 'nsga2is-sls-worker' }
+if ([string]::IsNullOrWhiteSpace($EcrRepository)) { $EcrRepository = 'oade-nsga2-sls-worker' }
 
 $StackName = $env:STACK_NAME
-if ([string]::IsNullOrWhiteSpace($StackName)) { $StackName = 'nsga2is-sls-worker-fargate' }
+if ([string]::IsNullOrWhiteSpace($StackName)) { $StackName = 'oade-nsga2-sls-worker-fargate' }
 
 $TemplateFile = $env:TEMPLATE_FILE
 if ([string]::IsNullOrWhiteSpace($TemplateFile)) { $TemplateFile = 'deploy/ecs-fargate/worker-fargate-stack.yaml' }
@@ -84,13 +84,24 @@ function Test-AwsCredentials([string]$AwsCli, [string]$Region) {
   throw 'AWS CLI could not verify credentials'
 }
 
+function Test-AwsAccountMatch([string]$AwsCli, [string]$Region, [string]$ExpectedAccountId) {
+  $callerAccount = (& $AwsCli sts get-caller-identity --query Account --output text --region $Region 2>$null).Trim()
+  if ([string]::IsNullOrWhiteSpace($callerAccount)) {
+    throw 'Unable to resolve AWS caller account from current credentials'
+  }
+
+  if ($callerAccount -ne $ExpectedAccountId) {
+    throw "Credential/account mismatch: current credentials are for account $callerAccount, but AWS_ACCOUNT_ID is $ExpectedAccountId"
+  }
+}
+
 Set-Location $PSScriptRoot
 Load-EnvFile -Path $DeployEnvFile
 
 if ([string]::IsNullOrWhiteSpace($AwsAccountId)) { $AwsAccountId = $env:AWS_ACCOUNT_ID }
 if ([string]::IsNullOrWhiteSpace($AwsRegion)) { $AwsRegion = 'ap-southeast-1' }
-if ([string]::IsNullOrWhiteSpace($EcrRepository)) { $EcrRepository = 'nsga2is-sls-worker' }
-if ([string]::IsNullOrWhiteSpace($StackName)) { $StackName = 'nsga2is-sls-worker-fargate' }
+if ([string]::IsNullOrWhiteSpace($EcrRepository)) { $EcrRepository = 'oade-nsga2-sls-worker' }
+if ([string]::IsNullOrWhiteSpace($StackName)) { $StackName = 'oade-nsga2-sls-worker-fargate' }
 if ([string]::IsNullOrWhiteSpace($TemplateFile)) { $TemplateFile = 'deploy/ecs-fargate/worker-fargate-stack.yaml' }
 if ([string]::IsNullOrWhiteSpace($Cpu)) { $Cpu = '2048' }
 if ([string]::IsNullOrWhiteSpace($Memory)) { $Memory = '4096' }
@@ -128,6 +139,10 @@ Write-Success "Built image $ImageLocal"
 Write-Step 'Checking AWS credentials'
 Test-AwsCredentials -AwsCli $AwsCli -Region $AwsRegion
 Write-Success 'AWS credentials are available'
+
+Write-Step 'Verifying deploy target account'
+Test-AwsAccountMatch -AwsCli $AwsCli -Region $AwsRegion -ExpectedAccountId $AwsAccountId
+Write-Success "AWS credentials match AWS_ACCOUNT_ID=$AwsAccountId"
 
 Write-Step 'Step 2/5: Logging in to AWS ECR'
 & $AwsCli ecr get-login-password --region $AwsRegion | docker login --username AWS --password-stdin "$AwsAccountId.dkr.ecr.$AwsRegion.amazonaws.com"

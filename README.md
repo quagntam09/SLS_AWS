@@ -1,4 +1,4 @@
-# NSGA2IS-SLS
+# OADE-NSGA2-SLS
 
 Hệ thống sinh lịch trực bác sĩ bằng NSGA-II cải tiến. API FastAPI nhận request, ghi trạng thái job vào DynamoDB, đẩy payload vào SQS và trả `request_id` ngay. Worker chạy tách biệt theo kiểu event-driven, xử lý tối ưu, ghi kết quả lên S3 và cập nhật tiến độ job.
 
@@ -21,7 +21,7 @@ Hệ thống sinh lịch trực bác sĩ bằng NSGA-II cải tiến. API FastAP
 ## Cấu Trúc Chính
 
 ```text
-NSGA2IS-SLS/
+OADE-NSGA2-SLS/
 ├── server/
 │   ├── app/
 │   │   ├── core/
@@ -31,7 +31,7 @@ NSGA2IS-SLS/
 │   │   ├── infrastructure/
 │   │   ├── main.py
 │   │   └── worker.py
-│   └── nsga2_improved/
+│   └── OADE-NSGA-II/
 ├── deploy/
 ├── API.md
 ├── ARCHITECTURE.md
@@ -62,12 +62,19 @@ npm install
 
 ## Cấu Hình Môi Trường
 
-Tạo file `.env` ở thư mục gốc khi chạy local. Các biến cấu hình được đọc trong [NSGA2IS-SLS/server/app/core/settings.py](NSGA2IS-SLS/server/app/core/settings.py) và được dùng lại bởi Lambda, worker và script deploy. Nếu cần danh sách biến runtime đầy đủ, tham chiếu trực tiếp file settings và [serverless.yml](serverless.yml).
+Tạo file `.env` ở thư mục gốc khi chạy local. Có thể copy từ `.env.example` rồi điền giá trị thực.
+
+Hai biến bắt buộc khi deploy lên AWS account mới:
+
+- `SERVERLESS_ACCESS_KEY`: license key/token của Serverless Framework.
+- `AWS_ACCOUNT_ID`: account đích để build/push image và deploy stack.
+
+Các biến cấu hình runtime được đọc trong [OADE-NSGA-II-SLS/server/app/core/settings.py](OADE-NSGA-II-SLS/server/app/core/settings.py) và được dùng lại bởi Lambda, worker và script deploy. Nếu cần danh sách biến runtime đầy đủ, tham chiếu trực tiếp file settings và [serverless.yml](serverless.yml).
 
 ## Chạy Local
 
 ```bash
-cd NSGA2IS-SLS
+cd OADE-NSGA-II-SLS
 uvicorn server.app.main:app --reload
 ```
 
@@ -81,7 +88,24 @@ Nếu cần chạy worker thủ công, dùng payload JSON hợp lệ qua `--even
 
 ## Deploy AWS
 
-Xem cấu hình và lệnh triển khai trong [serverless.yml](serverless.yml). Nếu cần kiểm tra mô hình worker trên ECS Fargate, dùng [deploy/ecs-fargate/README.md](deploy/ecs-fargate/README.md).
+1) Deploy API/Lambda bằng Serverless Framework:
+
+```bash
+npm install
+cp .env.example .env
+# cập nhật .env: SERVERLESS_ACCESS_KEY, AWS_ACCOUNT_ID, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+npx serverless deploy --stage dev --region ${AWS_REGION:-ap-southeast-2}
+```
+
+2) Deploy worker Fargate:
+
+```bash
+cp .deploy-worker.env.example .deploy-worker.env
+# cập nhật .deploy-worker.env theo resource thực tế của account mới
+bash ./deploy-worker.sh latest
+```
+
+Xem thêm runbook trong [deploy/ecs-fargate/README.md](deploy/ecs-fargate/README.md).
 
 ## Deploy Worker
 

@@ -25,7 +25,7 @@ from .selection import environmental_selection, remove_duplicates
 logger = logging.getLogger(__name__)
 
 
-class NSGA2ImprovedSmart:
+class OADE_NSGAII:
     """NSGA-II cải tiến với DE thích nghi, OBL và partial restart khi trì trệ."""
 
     def __init__(self, problem: ProblemWrapper, pop_size: int = 100, n_gen: int = 100) -> None:
